@@ -15,7 +15,9 @@
 /* Player page: phones and booth iPads. Big tap targets, one thing at a time. */
 body{user-select:none;-webkit-user-select:none;padding-bottom:env(safe-area-inset-bottom,0px)}
 header{padding-top:max(10px,env(safe-area-inset-top,0px))}
-#me{font-weight:700;text-align:right;line-height:1.2}
+#me{font-weight:700;text-align:right;line-height:1.2;margin-left:auto}
+header .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:480px){header .title{display:none}}
 #me small{display:block;color:var(--mute);font-weight:600}
 #main{max-width:620px;margin:0 auto;padding:16px}
 .center{text-align:center}
@@ -51,6 +53,7 @@ header{padding-top:max(10px,env(safe-area-inset-top,0px))}
 <script src="lib/qrcode.js"></script>
 <script src="firebase-config.js"></script>
 <script src="common.js"></script>
+<script src="jungle.js"></script>
 <script>
 "use strict";
 var $ = WD.$, el = WD.el;
@@ -72,9 +75,36 @@ var late = {};                          /* qkey -> the answer arrived after time
 var refs = [];
 var resetT = null;
 
+/* Which screen is showing. Decorated (jungle) screens are the ones where nothing is being asked. */
+function screenKey() {
+  if (!room) return "code";
+  if (!fb || meta === null || !game || game.phase === "closed") return "wait";
+  var joined = myGame === game.id && mine && mine.game === game.id;
+  if (!joined) return "join:" + game.phase;
+  return game.phase + ":" + (game.qkey || "") + ":" + game.clip;
+}
+/* Redraws only when what's on screen actually changes. Database updates arrive often; rebuilding the screen every time
+   restarted the pop-in animations (flicker) and could swallow a tap that landed mid-redraw. The new screen is built
+   off-page, compared with the current one, and swapped in only if it differs. Same screen = keep the scroll position. */
+var lastKey = null;
 function render() {
-  var r = $("main"); r.textContent = "";
-  $("me").textContent = ""; if (myName && myGame && game && game.id === myGame) { $("me").appendChild(document.createTextNode(myName)); if (result && result.game === myGame) $("me").appendChild(el("small", {}, [result.score + " pts"])); }
+  var m = $("main"), key = screenKey(), same = key === lastKey, keepY = window.scrollY;
+  var me = $("me"), meHtml = ""; if (myName && myGame && game && game.id === myGame) meHtml = esc(myName) + (result && result.game === myGame ? "<small>" + result.score + " pts</small>" : "");
+  if (me.innerHTML !== meHtml) me.innerHTML = meHtml;
+  var r = el("div", {}); draw(r);
+  var norm = function (h) { return h.replace(/id="tbar" style="[^"]*"/, 'id="tbar"'); };
+  if (same && norm(r.innerHTML) === norm(m.innerHTML)) return;
+  m.textContent = ""; while (r.firstChild) m.appendChild(r.firstChild);
+  var dec = /^(code|wait|join:|lobby|final)/.test(key);
+  WD.decor(dec);
+  if (same && keepY) window.scrollTo(0, keepY); else if (!same) window.scrollTo(0, 0);
+  WD.afterRender(same);
+  if (!same && /^final/.test(key)) WD.confetti();
+  lastKey = key;
+  tick();
+}
+function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+function draw(r) {
   if (!room) return codeView(r);
   if (!fb) return r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, ["Connecting…"]), el("p", { class: "muted" }, [connErr || "Getting ready to play."])]));
   if (!conn.online) r.appendChild(el("p", { class: "center no" }, ["⚠ Reconnecting… (check your internet)"]));
@@ -87,7 +117,7 @@ function render() {
     if (autoJoin && !BOOTH) { join(); return r.appendChild(el("p", { class: "center big" }, ["Joining…"])); }
     return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["🔍"]), el("p", { class: "big" }, ["Wildlife Detectives"]),
       el("p", { class: "muted" }, ["Watch camera-trap videos on the big screen and spot the animals!"]),
-      el("button", { class: "btn big", style: "width:100%;margin-top:10px", onclick: function () { autoJoin = true; join(); } }, ["▶ Tap to play"])]));
+      el("button", { class: "btn big go", style: "width:100%;margin-top:10px", onclick: function () { autoJoin = true; join(); } }, ["▶ Tap to play"])]));
   }
   ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase] ? ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase](r) : r.appendChild(el("p", { class: "center" }, ["…"]));
 }
@@ -98,7 +128,7 @@ function codeView(r) {
   function go() { var c = WD.cleanCode(i.value); if (c.length !== 4) { m.textContent = "The code has 4 letters."; return; } room = c; start(); }
   var m = el("p", { class: "hint center" }, [""]);
   i.onkeydown = function (e) { if (e.key === "Enter") go(); };
-  r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, ["Enter the code on the big screen"]), i, m, el("button", { class: "btn big", style: "width:100%", onclick: go }, ["Join"])]));
+  r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, ["Enter the code on the big screen"]), i, m, el("button", { class: "btn big go", style: "width:100%", onclick: go }, ["Join"])]));
   setTimeout(function () { i.focus(); }, 50);
 }
 
@@ -116,7 +146,7 @@ function questionView(r) {
   var q = game.qkey;
   if (sent[q] != null) return r.appendChild(el("div", { class: "card center popin" }, [el("div", { class: "huge" }, ["✅"]), el("p", { class: "big" }, ["Answer sent!"]), el("p", { class: "muted" }, ["Waiting for the other players…"])]));
   if (!game.open || late[q]) return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["⏰"]), el("p", { class: "big" }, ["Time's up!"]), el("p", { class: "muted" }, ["Get ready for the next one."])]));
-  var box = el("div", {}, [el("p", { class: "big", style: "margin-bottom:4px" }, [game.title || ""]), el("div", { class: "timer" }, [el("i", { id: "tbar" })])]);
+  var box = el("div", {}, [el("p", { class: "big", style: "margin-bottom:4px" }, [game.title || ""]), el("div", { class: "timer" }, [el("i", { id: "tbar", style: "width:" + (100 * timeLeft() / (game.seconds || 1)).toFixed(1) + "%" })])]);
   if (!game.multi) {
     box.appendChild(el("div", { class: "ptiles" }, (game.choices || []).map(function (x, k) { var t = WD.TILES[k % 4];
       return el("button", { class: "tile", style: { background: t.color }, "aria-label": x + " (" + t.label + ")", onclick: function () { send(q, x); } }, [el("span", { class: "shape" }, [t.shape]), x]); })));
@@ -129,7 +159,7 @@ function questionView(r) {
       return el("button", { class: "chip" + (picks[q][b] ? " on" : ""), onclick: function () { picks[q][b] = !picks[q][b]; this.classList.toggle("on", picks[q][b]); done.disabled = !Object.keys(picks[q]).some(function (k) { return picks[q][k]; }); } }, [b]); })));
     box.appendChild(done);
   }
-  r.appendChild(box); tick();
+  r.appendChild(box);
 }
 var tickT = null;
 function tick() {
@@ -143,7 +173,7 @@ function revealView(r) {
   var card = el("div", { class: "card center popin" });
   if (!L) { card.appendChild(el("p", { class: "big" }, [c.animal === WD.NO_ANIMAL ? "No animal this time!" : "It was a " + c.animal + "!"])); }
   else {
-    card.appendChild(el("div", { class: "huge" }, [L.pts >= (L.noAnimal ? WD.ANIMAL_POINTS : WD.ANIMAL_POINTS + WD.BEHAVIOR_POINTS) ? "🌟" : L.pts > 0 ? "👍" : "🌱"]));
+    card.appendChild(el("div", { class: "huge bounce" }, [L.pts >= (L.noAnimal ? WD.ANIMAL_POINTS : WD.ANIMAL_POINTS + WD.BEHAVIOR_POINTS) ? "🌟" : L.pts > 0 ? "👍" : "🌱"]));
     card.appendChild(el("p", { class: "res " + (L.animalOk ? "ok" : "no") }, [L.animalOk ? "✅ You spotted the " + (c.animal === WD.NO_ANIMAL ? "empty clip" : c.animal) + "!" : L.animal ? "❌ It was " + (c.animal === WD.NO_ANIMAL ? "no animal at all" : "a " + c.animal) : "⏰ No answer. It was " + (c.animal === WD.NO_ANIMAL ? "no animal at all" : "a " + c.animal)]));
     if (!L.noAnimal) card.appendChild(el("p", { class: "res " + (L.bExact ? "ok" : L.bPts ? "part" : "no") }, [L.bExact ? "✅ You got what it was doing!" : L.bPts ? "👍 Partly right on what it was doing" : "❌ Not quite on what it was doing"]));
     if (!L.noAnimal && c.behaviors && c.behaviors.length) card.appendChild(el("p", { class: "muted" }, ["It was: " + c.behaviors.join(", ")]));
@@ -159,7 +189,7 @@ function boardView(r) {
 }
 function finalView(r) {
   var me = result && result.game === myGame ? result : null;
-  r.appendChild(el("div", { class: "card center popin" }, [el("div", { class: "huge" }, [me && me.rank <= 3 ? ["🥇", "🥈", "🥉"][me.rank - 1] : "🎉"]),
+  r.appendChild(el("div", { class: "card center popin" }, [el("div", { class: "huge bounce" }, [me && me.rank <= 3 ? ["🥇", "🥈", "🥉"][me.rank - 1] : "🎉"]),
     el("p", { class: "big" }, ["Great job, detective!"]),
     me ? el("p", { class: "res" }, ["You came ", el("b", {}, ["#" + me.rank]), " of " + me.of + " with ", el("b", {}, [me.score + " points"]), "."]) : null,
     el("p", { class: "muted" }, ["We hope you learned something new about wildlife research in the Djéké Triangle."]),
@@ -167,7 +197,7 @@ function finalView(r) {
     BOOTH ? el("div", { class: "qr" }, [el("p", {}, ["Learn more: scan with your phone"]), WD.qrSvg(WD.RESEARCH_URL, 180), el("p", { class: "url" }, ["congo-apes.org"])])
       : el("p", { class: "res" }, ["Learn more at ", el("a", { href: WD.RESEARCH_URL, target: "_blank", rel: "noopener", class: "link" }, ["congo-apes.org"])]),
     BOOTH ? el("p", { class: "hint" }, ["Please put the iPad back for the next player. 🙂"]) : null,
-    BOOTH ? null : el("button", { class: "btn big", style: "width:100%;margin-top:10px", onclick: function () { myGame = null; autoJoin = true; render(); } }, ["Play again"])]));
+    BOOTH ? null : el("button", { class: "btn big go", style: "width:100%;margin-top:10px", onclick: function () { myGame = null; autoJoin = true; render(); } }, ["Play again"])]));
   if (BOOTH) { clearTimeout(resetT); resetT = setTimeout(function () { if (game && game.phase === "final") { myGame = null; render(); } }, 25000); }
 }
 

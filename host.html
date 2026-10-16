@@ -10,6 +10,8 @@
 /* Big screen: sized for a TV, laptop or iPad in landscape. */
 #main{max-width:1100px;margin:0 auto;padding:18px}
 #main.wide{max-width:none;padding:14px 20px}
+/* lobby and final screens: leave side margins so the jungle vines show, like the single-iPad game */
+@media (min-width:900px){#main.wide.decor{max-width:1300px;padding:18px 110px min(18vh,170px)}}
 .home{text-align:center;max-width:640px;margin:30px auto}
 .home img{width:200px;max-width:60%}
 .home h1{font-size:clamp(2rem,4vw,3rem)}
@@ -67,7 +69,8 @@
 .brow .nm{flex:1}
 .brow.p1{background:#fff6dc;border-color:var(--acc2)}
 .podium{display:flex;justify-content:center;align-items:flex-end;gap:14px;margin:24px 0}
-.podium div{background:var(--card);border:2px solid var(--line);border-radius:14px 14px 0 0;width:min(26vw,230px);text-align:center;padding:12px 8px;font-weight:800}
+.podium>div{background:var(--card);border:2px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;width:min(22vw,220px);text-align:center;padding:12px 8px;font-weight:800;display:flex;flex-direction:column;justify-content:flex-start;gap:4px}
+.podium>div.first{background:#fff6dc;border-color:var(--acc2)}
 .podium .n{font-size:clamp(1rem,1.8vw,1.4rem)}
 .podium .s{color:var(--mute);font-weight:700}
 .podium .m{font-size:2.4rem}
@@ -92,6 +95,7 @@
 <script src="lib/qrcode.js"></script>
 <script src="firebase-config.js"></script>
 <script src="common.js"></script>
+<script src="jungle.js"></script>
 <script>
 "use strict";
 var $ = WD.$, el = WD.el;
@@ -180,11 +184,19 @@ function showConn() {
 }
 
 /* ======================= views ======================= */
+/* Redraws the current view. A redraw of the same view keeps the scroll position (the page used to jump to the top when a
+   Settings button redrew the panel, because emptying #main shrinks the page). The position is read BEFORE emptying. */
+var lastView = null, lastPhase = null;
 function render() {
-  var r = $("main"); r.querySelectorAll("video").forEach(function (v) { if (v !== vid) { try { v.pause(); v.removeAttribute("src"); v.load(); } catch (e) {} } });
+  var r = $("main"), phase = G ? G.phase : null, same = view === lastView && (view !== "play" || phase === lastPhase), keepY = window.scrollY;
+  r.querySelectorAll("video").forEach(function (v) { if (v !== vid) { try { v.pause(); v.removeAttribute("src"); v.load(); } catch (e) {} } });
   r.textContent = ""; r.classList.toggle("wide", view === "play" || view === "lobby" || view === "final");
+  WD.decor(view === "home" || view === "lobby" || view === "final");
   $("gear").classList.toggle("hide", !!G);
   ({ home: homeView, settings: settingsView, pin: pinView, lobby: lobbyView, play: playView, final: finalView })[view](r);
+  if (same && keepY) window.scrollTo(0, keepY); else if (!same) window.scrollTo(0, 0);
+  WD.afterRender(same);
+  lastView = view; lastPhase = phase;
 }
 
 function homeView(r) {
@@ -203,7 +215,7 @@ function homeView(r) {
   else if (!fb) w.appendChild(el("div", { class: "warn-box" }, ["Not connected to the game server yet. Check the internet connection. (" + $("connText").textContent + ")"]));
   if (!n) w.appendChild(el("div", { class: "warn-box" }, ["No clips are ready. Open ⚙ Settings, add camera-trap videos and set each one's answers."]));
   w.appendChild(el("div", { class: "row", style: "justify-content:center;margin-top:14px" }, [
-    el("button", { class: "btn big", id: "newGame", disabled: !n || !fb || !room, onclick: newGame }, ["▶ New game"])]));
+    el("button", { class: "btn big go", id: "newGame", disabled: !n || !fb || !room, onclick: newGame }, ["▶ New game"])]));
   w.appendChild(el("p", { class: "hint", style: "margin-top:10px" }, [cfg.mode === "booth" ? "Players use the booth iPads (change in Settings)." : "Players join on their own phones by scanning a QR code (change in Settings)."]));
   r.appendChild(w);
 }
@@ -220,7 +232,6 @@ function pinView(r) {
 /* ---------- Settings ---------- */
 var draft = null, unsaved = {};
 function settingsView(r) {
-  var keepY = window.scrollY;
   r.appendChild(el("div", { class: "row", style: "margin-bottom:12px" }, [el("h2", { style: "flex:1" }, ["Settings"]),
     el("button", { class: "btn alt", onclick: function () { view = "home"; draft = null; render(); } }, ["← Back"])]));
   r.appendChild(el("p", { class: "hint", id: "amsg", style: "white-space:pre-wrap" }, [msg]));
@@ -328,7 +339,6 @@ function settingsView(r) {
     el("div", { class: "row" }, [el("button", { class: "btn", onclick: async function () { cfg.playerUrl = urlIn.value.trim(); await saveCfg(); flash(this); render(); } }, ["Save address"])])]));
   r.appendChild(el("div", { class: "card" }, [el("h2", {}, ["Settings PIN"]), el("p", { class: "hint" }, ["Optional. Stops visitors opening Settings on the big screen. Leave empty for no PIN."]), pinIn,
     el("div", { class: "row", style: "margin-top:8px" }, [el("button", { class: "btn", onclick: async function () { cfg.pin = pinIn.value.trim(); delete unsaved.pin; await saveCfg(); flash(this, cfg.pin ? "✓ PIN saved" : "✓ PIN removed"); } }, ["Save PIN"])])]));
-  if (keepY) window.scrollTo(0, keepY);
 }
 
 async function setMode(m) {
@@ -476,7 +486,7 @@ function lobbyView(r) {
     el("p", { class: "muted" }, [G.clips.length + " camera-trap clip" + (G.clips.length > 1 ? "s" : "") + ". For each one: which animal is it, and what is it doing?"]),
     count, list,
     el("div", { class: "ctrl" }, [el("button", { class: "btn alt", onclick: endGame }, ["Cancel"]),
-      el("button", { class: "btn big", id: "startBtn", disabled: true, onclick: startPlay }, ["Start game ▶"])])])]));
+      el("button", { class: "btn big go", id: "startBtn", disabled: true, onclick: startPlay }, ["Start game ▶"])])])]));
   drawLobbyPlayers();
 }
 function drawLobbyPlayers() {
@@ -598,7 +608,7 @@ async function finish() {
   var rec = { id: G.id, started: G.started, ended: Date.now(), mode: cfg.mode, questions: G.questions || 0, maxScore: G.maxScore || 0, clips: G.clips.map(function (c) { return c.name; }),
     players: list.map(function (p) { return { name: p.name, score: p.score, rank: p.rank, answered: G.answered[p.uid] || 0 }; }), rows: G.rows };
   try { await idbPut("games", rec); games.push(rec); } catch (e) { say("Couldn't save this game's results on this device: " + e.message); }
-  G.phase = "final"; G.final = list; stopVideo(); view = "final"; render();
+  G.phase = "final"; G.final = list; stopVideo(); view = "final"; render(); WD.confetti();
 }
 function stopVideo() { if (vid) { vid.onended = null; vid.pause(); vid.loop = false; } }
 async function endGame() {
@@ -632,7 +642,7 @@ function playView(r) {
     else s.appendChild(el("div", { class: "blist" }, q.choices.map(function (x) { return el("div", { class: "bitem" }, [x]); })));
     side.appendChild(s);
   } else if (ph === "reveal") {
-    var R = G.reveal, s2 = el("div", { class: "card popin" }, [el("div", { class: "qtitle" }, [R.noAnimal ? "No animal this time!" : "It's a " + R.correct + "!"])]);
+    var R = G.reveal, s2 = el("div", { class: "card popin" }, [el("div", { class: "qtitle" }, [el("span", { class: "verdict" }, [R.noAnimal ? "No animal this time!" : "It's a " + R.correct + "!"])])]);
     s2.appendChild(el("div", { class: "tiles" }, R.choices.map(function (x, k) { var t = WD.TILES[k];
       return el("div", { class: "tile" + (x === R.correct ? " right" : " dim"), style: { background: t.color } }, [el("span", { class: "shape" }, [x === R.correct ? "✓" : t.shape]), x, el("span", { class: "count" }, [String(R.counts.animal[x] || 0)])]); })));
     if (!R.noAnimal) {
@@ -661,13 +671,13 @@ function boardView() {
 function finalView(r) {
   var list = G.final || [], top = list.slice(0, 3), medal = ["🥇", "🥈", "🥉"], order = [1, 0, 2], h = ["150px", "200px", "120px"];
   var pod = el("div", { class: "podium" });
-  order.forEach(function (k) { var p = top[k]; if (!p) return; pod.appendChild(el("div", { class: "popin", style: { height: h[k] } }, [el("div", { class: "m" }, [medal[k]]), el("div", { class: "n" }, [p.name]), el("div", { class: "s" }, [p.score + " pts"])])); });
+  order.forEach(function (k) { var p = top[k]; if (!p) return; pod.appendChild(el("div", { class: "popin" + (k === 0 ? " first" : ""), style: { minHeight: h[k] } }, [el("div", { class: "m" }, [medal[p.rank - 1] || "🏅"]), el("div", { class: "n" }, [p.name]), el("div", { class: "s" }, [p.score + " pts"])])); });
   var rest = el("div", {}); list.slice(3, 10).forEach(function (p) { rest.appendChild(el("div", { class: "brow" }, [el("span", { class: "rk" }, ["#" + p.rank]), el("span", { class: "nm" }, [p.name]), el("span", {}, [String(p.score)])])); });
   r.appendChild(el("div", { class: "final" }, [
-    el("div", { class: "card board" }, [el("h1", {}, ["🎉 Great job, detectives!"]), el("p", { class: "muted", style: "text-align:center" }, [list.length + " player" + (list.length === 1 ? "" : "s") + " · " + G.clips.length + " clip" + (G.clips.length === 1 ? "" : "s")]), pod, rest]),
+    el("div", { class: "card board" }, [el("h1", {}, [el("span", { class: "bounce" }, ["🎉"]), " Great job, detectives!"]), el("p", { class: "muted", style: "text-align:center" }, [list.length + " player" + (list.length === 1 ? "" : "s") + " · " + G.clips.length + " clip" + (G.clips.length === 1 ? "" : "s")]), pod, rest]),
     el("div", { class: "card qrcard" }, [el("img", { src: "logo.png", alt: "Research project logo", style: "max-width:140px" }),
       el("p", {}, ["We hope you learned something new about wildlife research in the Djéké Triangle. Learn more:"]), WD.qrSvg(WD.RESEARCH_URL, 200), el("p", { class: "url" }, [WD.RESEARCH_URL.replace(/^https:\/\//, "").replace(/\/$/, "")])])]));
-  r.appendChild(el("div", { class: "ctrl" }, [el("button", { class: "btn alt", onclick: endGame }, ["Done"]), el("button", { class: "btn big", onclick: async function () { await endGame(); newGame(); } }, ["▶ Play again"])]));
+  r.appendChild(el("div", { class: "ctrl" }, [el("button", { class: "btn alt", onclick: endGame }, ["Done"]), el("button", { class: "btn big go", onclick: async function () { await endGame(); newGame(); } }, ["▶ Play again"])]));
 }
 
 /* ======================= start-up ======================= */

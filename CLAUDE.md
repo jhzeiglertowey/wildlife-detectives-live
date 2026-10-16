@@ -26,6 +26,8 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
 ## Status
 
 - 2026-10-16: repository created (public); first full version built and tested against the Firebase emulator (`tests/e2e.py` 48/48, `tests/booth.py` 16/16).
+- 2026-10-16: added the original game's jungle start screen, button animations and redraw fixes (user requests), plus `tests/ui.py` (18/18). The Safari engine (WebKitGTK 2.52) played full games as a phone and as a booth iPad with no errors.
+- Work is on branch `claude/live-game`. GitHub Pages serves `main`, so it needs merging (PR) before going live.
 - **Waiting on the user:** creating the Firebase project and pasting its settings into `firebase-config.js` (README "One-time setup"), and turning on GitHub Pages (Settings → Pages → `main` / root). Until `firebase-config.js` is filled in, the pages say Firebase isn't set up.
 - **Not yet tested:** a real Firebase project, real phones and iPads, H.264 clips (the sandbox Chromium can't play them; tests use VP9 WebM).
 
@@ -38,7 +40,8 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
   - default lists (`DEF_BEHAVIORS`, `DEF_SPECIES`, the same as the single-iPad game);
   - `randomName()`, answer tiles (`TILES`: colour and shape), and scoring (`scoreBehaviors`);
   - room codes, the Firebase connection (`connect`, `watchConnection`), player links (`playerUrl`) and the QR code (`qrSvg`).
-- `style.css`: shared look (always light mode, same palette as the single-iPad game).
+- `style.css`: shared look (always light mode, same palette as the single-iPad game), the jungle CSS and the button animations.
+- `jungle.js`: the jungle decor markup (vines, foliage, corner leaves, butterflies), **copied unchanged from the single-iPad game**. It's injected into `<body>` on load and shown with `WD.decor(true)`.
 - `firebase-config.js`: the user's Firebase web config (`window.WD_FIREBASE_CONFIG`), with `PASTE_...` placeholders until set up.
 - `database.rules.json`: security rules, pasted by the user into the Firebase console. **Keep it in sync with the data model.**
 - `lib/`: vendored Firebase compat SDK 11.10.0 (app, auth, database) and qrcode-generator 2.0.4 (`lib/LICENSES.md`).
@@ -106,15 +109,35 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
 - `wildlife_detectives_live_answers_<date>.csv`: one row per player per clip, with the answer, the correct answer and the points.
 - "Reset count & answers" (double tap) clears all stored games.
 
+### Look and feel (user requests 2026-10-16: "same as the original game")
+- **Jungle decor** is shown on the screens where nothing is being asked:
+  - big screen: `home`, `lobby`, `final`;
+  - phone: code entry, waiting, "Tap to play"/joining, lobby, final.
+- It's **hidden during clips and questions** so nothing distracts. `WD.decor(on)` toggles `#jungle` and `#main.decor`, and sets `--hdr` so the vines hang from the opaque top bar.
+- On wide screens the big screen's lobby and final get 110px side margins, so the vines show beside the cards.
+- **Button feedback** (same as the original):
+  - every button, answer tile and chip shrinks while pressed (CSS `:active` scale .94);
+  - it "pops" when tapped (`WD.pop`, from a capture-phase click listener in `common.js`). If the redraw shows the same screen, `WD.afterRender(sameScreen)` re-applies the pop to the button in the same position;
+  - main buttons (New game, Start game, Play again, Tap to play, Join) have `.btn.go` and pulse;
+  - results bounce in (`.verdict`, `.bounce`);
+  - finished screens drop a confetti shower (`WD.confetti`);
+  - Save buttons flash "✓ Saved" (`flash()`), and double-tap buttons turn orange (`.btn.armed`) and disarm after 4 s.
+  - All of it is off under `prefers-reduced-motion`.
+- **No screen jumping:**
+  - **Big screen:** `render()` reads `scrollY` **before** emptying `#main` and restores it when redrawing the same view, so Settings stays put when its buttons redraw it. A different view starts at the top.
+  - **Phones:** `render()` builds the new screen off-page (`draw()`), compares its HTML with what's showing (ignoring the timer bar's width), and **only swaps it in if it changed**. Database updates arrive often (other players joining or answering, clock offset). Rebuilding every time restarted the pop-in animations (flicker, washed-out screenshots) and could swallow a tap that landed mid-redraw. `screenKey()` decides "same screen" (scroll kept) versus a new screen (scroll to top, confetti on final).
+- **Podium medals follow the rank**, so tied players get the same medal.
+
 ## Testing
 
 - See `tests/README.md`. Short version:
   - run the emulator jar directly on port 9000;
   - PUT `database.rules.json` to `/.settings/rules.json?ns=demo-wd` with `Authorization: Bearer owner`;
   - serve the repo with `python3 -m http.server 8080`;
-  - run `tests/e2e.py` and `tests/booth.py`.
+  - run `tests/e2e.py`, `tests/booth.py` and `tests/ui.py`.
 - In the cloud sandbox, `firebase emulators:start` fails to load rules because the CLI's traffic goes through the outbound proxy. Running the jar directly avoids it.
 - `--noproxy '*'` is needed for curl to reach localhost.
 - Sandbox Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. It has no H.264, so test clips are VP9 WebM.
 - Safari-engine check: WebKitGTK 2.52 is available (see the single-iPad repo's CLAUDE.md for how to run it; snapshots need `python3-gi-cairo`).
-- After editing, extract each page's last `<script>` and run `node --check` on it, then run both test files.
+- After editing, extract each page's last `<script>` and run `node --check` on it, then run all three test files.
+- **Safari engine (WebKitGTK)** harness: a Chromium big screen drives the game, and a WebKitGTK window plays as a phone or booth iPad (`index.html?room=CODE&emu=1&uid=...`). The harness injects JS that answers and reports, and snapshots are taken with `get_snapshot` (needs `python3-gi-cairo`). Run it under `xvfb-run` with `/usr/bin/python3.12`. The scripts lived in the session scratchpad (not in the repo); rebuild them from this description if needed.

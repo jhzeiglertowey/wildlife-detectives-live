@@ -140,12 +140,60 @@ var WD = (function () {
 
   var RESEARCH_URL = "https://congo-apes.org/";
 
+  /* ---------- jungle decor: shown on the start and finished screens, like the single-iPad game ---------- */
+  function setHdr() { var h = document.querySelector("header"); if (h) document.documentElement.style.setProperty("--hdr", h.offsetHeight + "px"); }
+  window.addEventListener("resize", setHdr);
+  function decor(on) {
+    var j = $("jungle"), m = $("main");
+    if (j) j.classList.toggle("hide", !on);
+    if (m) m.classList.toggle("decor", !!on);
+    setHdr();
+  }
+
+  /* ---------- button feedback: press = shrink (CSS), tap = a quick "pop" ----------
+     Many taps redraw the screen. If the redraw shows the same screen, the pop is re-applied to the button in the same
+     position, so it isn't lost (same approach as the single-iPad game's Settings panel). */
+  var popIdx = null, popT = 0;
+  var TAPPABLE = "button, .tile, .chip";
+  function pop(b) { if (!b) return; b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
+  document.addEventListener("animationend", function (e) { if (e.target.classList && e.animationName === "savedPop") e.target.classList.remove("pop"); });
+  document.addEventListener("touchstart", function () {}, { passive: true }); /* lets iPad Safari show the :active press effect */
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest(TAPPABLE); if (!b || b.disabled) return;
+    var m = $("main");
+    popIdx = m && m.contains(b) ? [].indexOf.call(m.querySelectorAll(TAPPABLE), b) : null; popT = Date.now();
+    pop(b);
+  }, true);
+  /* Call at the end of every redraw. sameScreen: the redraw shows the same screen as before. */
+  function afterRender(sameScreen) {
+    var m = $("main");
+    if (sameScreen && popIdx != null && popIdx >= 0 && Date.now() - popT < 1500 && m) pop(m.querySelectorAll(TAPPABLE)[popIdx]);
+    popIdx = null;
+  }
+  function reducedMotion() { return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches); }
+
+  /* A one-time shower of falling leaves and confetti in jungle colours (finished screens), removed after ~5.5 s. */
+  function confetti() {
+    if (reducedMotion()) return;
+    var c = el("div", { class: "confetti", "aria-hidden": "true" }), cols = ["#2f7d4f", "#4caf68", "#e0a526", "#8bc34a", "#c0473a", "#1f5a36"];
+    for (var i = 0; i < 46; i++) {
+      var d = el("i", {});
+      d.style.left = (Math.random() * 100) + "vw"; d.style.background = pick(cols);
+      d.style.animationDuration = (2.6 + Math.random() * 2.2) + "s"; d.style.animationDelay = (Math.random() * .9) + "s";
+      d.style.setProperty("--r", (Math.random() < .5 ? "-" : "") + (360 + Math.floor(Math.random() * 360)) + "deg");
+      var sz = 8 + Math.random() * 10; d.style.width = sz + "px"; d.style.height = (sz * 1.5) + "px";
+      c.appendChild(d);
+    }
+    document.body.appendChild(c); setTimeout(function () { c.remove(); }, 5500);
+  }
+
   return {
     $: $, el: el, pick: pick, shuffle: shuffle, sleep: sleep, inn: inn,
     DEF_BEHAVIORS: DEF_BEHAVIORS, DEF_SPECIES: DEF_SPECIES, NO_ANIMAL: NO_ANIMAL,
     randomName: randomName, TILES: TILES, ANIMAL_POINTS: ANIMAL_POINTS, BEHAVIOR_POINTS: BEHAVIOR_POINTS, scoreBehaviors: scoreBehaviors,
     newRoomCode: newRoomCode, cleanCode: cleanCode,
     configured: configured, connect: connect, serverTs: serverTs, watchConnection: watchConnection, errText: errText, isEmulator: function () { return !!emulator(); },
-    DEFAULT_PLAYER_URL: DEFAULT_PLAYER_URL, playerUrl: playerUrl, qrSvg: qrSvg, RESEARCH_URL: RESEARCH_URL
+    DEFAULT_PLAYER_URL: DEFAULT_PLAYER_URL, playerUrl: playerUrl, qrSvg: qrSvg, RESEARCH_URL: RESEARCH_URL,
+    decor: decor, setHdr: setHdr, pop: pop, afterRender: afterRender, confetti: confetti, reducedMotion: reducedMotion
   };
 })();
