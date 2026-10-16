@@ -84,13 +84,17 @@ var WD = (function () {
     var emu = emulator();
     if (!emu && !configured()) return Promise.reject({ code: "not_configured" });
     conn = (async function () {
+      var again = firebase.apps.length > 0;   /* a retry after a failed sign-in: the app already exists */
       if (emu) {
-        firebase.initializeApp({ apiKey: "demo-key", projectId: emu.ns, databaseURL: "https://" + emu.ns + ".firebaseio.com" });
+        /* test hook: ?failauth=N makes the first N connection attempts fail like Google's "too many new accounts" limit */
+        var fails = +(new URLSearchParams(location.search).get("failauth") || 0), tried = +(sessionStorage.getItem("wd_emu_tries") || 0);
+        if (tried < fails) { sessionStorage.setItem("wd_emu_tries", tried + 1); throw { code: "auth/too-many-requests", message: "simulated" }; }
+        if (!again) firebase.initializeApp({ apiKey: "demo-key", projectId: emu.ns, databaseURL: "https://" + emu.ns + ".firebaseio.com" });
         var d = firebase.database();
-        d.useEmulator(emu.host, emu.port, { mockUserToken: { sub: emu.uid, user_id: emu.uid } });
+        if (!again) d.useEmulator(emu.host, emu.port, { mockUserToken: { sub: emu.uid, user_id: emu.uid } });
         return { db: d, uid: emu.uid };
       }
-      firebase.initializeApp(window.WD_FIREBASE_CONFIG);
+      if (!again) firebase.initializeApp(window.WD_FIREBASE_CONFIG);
       var cred = await firebase.auth().signInAnonymously();
       return { db: firebase.database(), uid: cred.user.uid };
     })();
@@ -105,8 +109,12 @@ var WD = (function () {
     db.ref(".info/serverTimeOffset").on("value", function (s) { state.offset = s.val() || 0; onChange(state); });
     return state;
   }
+  /* Google limits how many NEW anonymous accounts one internet connection can create per hour (about 100). On a busy day
+     on the zoo's Wi-Fi, phones joining after that get this error; on mobile data each phone has its own connection. */
+  function rateLimited(e) { return !!e && /too-many-requests|quota-exceeded|TOO_MANY_ATTEMPTS|QUOTA_EXCEEDED/i.test((e.code || "") + " " + (e.message || "")); }
   function errText(e) {
     if (!e) return "unknown problem";
+    if (rateLimited(e)) return "too many new players are joining over this Wi-Fi right now";
     if (e.code === "not_configured") return "Firebase isn't set up yet (see README.md, \"Set up Firebase\").";
     if (/PERMISSION_DENIED|permission/i.test(e.code + " " + e.message)) return "the database refused this (check the database rules in README.md)";
     if (/admin-restricted|operation-not-allowed/.test(e.code || "")) return "anonymous sign-in is turned off in Firebase (see README.md, step 4)";
@@ -192,7 +200,7 @@ var WD = (function () {
     DEF_BEHAVIORS: DEF_BEHAVIORS, DEF_SPECIES: DEF_SPECIES, NO_ANIMAL: NO_ANIMAL,
     randomName: randomName, TILES: TILES, ANIMAL_POINTS: ANIMAL_POINTS, BEHAVIOR_POINTS: BEHAVIOR_POINTS, scoreBehaviors: scoreBehaviors,
     newRoomCode: newRoomCode, cleanCode: cleanCode,
-    configured: configured, connect: connect, serverTs: serverTs, watchConnection: watchConnection, errText: errText, isEmulator: function () { return !!emulator(); },
+    configured: configured, connect: connect, rateLimited: rateLimited, serverTs: serverTs, watchConnection: watchConnection, errText: errText, isEmulator: function () { return !!emulator(); },
     DEFAULT_PLAYER_URL: DEFAULT_PLAYER_URL, playerUrl: playerUrl, qrSvg: qrSvg, RESEARCH_URL: RESEARCH_URL,
     decor: decor, setHdr: setHdr, pop: pop, afterRender: afterRender, confetti: confetti, reducedMotion: reducedMotion
   };

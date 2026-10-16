@@ -27,7 +27,8 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
 
 - 2026-10-16: repository created (public); first full version built and tested against the Firebase emulator (`tests/e2e.py` 48/48, `tests/booth.py` 16/16).
 - 2026-10-16: added the original game's jungle start screen, button animations and redraw fixes (user requests), plus `tests/ui.py` (18/18). The Safari engine (WebKitGTK 2.52) played full games as a phone and as a booth iPad with no errors.
-- Work is on branch `claude/live-game`. GitHub Pages serves `main`, so it needs merging (PR) before going live.
+- 2026-10-16: PR #1 (`claude/live-game`) merged into `main` by the user.
+- 2026-10-16: busy-Wi-Fi message (user request, many visitors expected on zoo Wi-Fi), on branch `claude/wifi-limit-message`.
 - **Waiting on the user:** creating the Firebase project and pasting its settings into `firebase-config.js` (README "One-time setup"), and turning on GitHub Pages (Settings → Pages → `main` / root). Until `firebase-config.js` is filled in, the pages say Firebase isn't set up.
 - **Not yet tested:** a real Firebase project, real phones and iPads, H.264 clips (the sandbox Chromium can't play them; tests use VP9 WebM).
 
@@ -104,6 +105,15 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
   - Random "Adjective Animal" names (Congo species), unique within the game. A "🎲 New name" button appears in the lobby.
   - The name is kept in `localStorage` (`wd_last`), so a reload mid-game keeps the same name and score.
 
+### Busy Wi-Fi (user request 2026-10-16)
+- Google limits how many **new** anonymous accounts one internet connection (IP address) can create per hour, roughly 100. Many visitors joining over the zoo Wi-Fi share one public IP.
+- When `signInAnonymously()` fails like that, `WD.rateLimited(e)` matches `auth/too-many-requests` / quota errors. The phone then shows "Too many new players right now", asks the player to turn off Wi-Fi and use mobile data, and shows a **Try again** button. It also retries by itself every 30 s.
+- Any other connection failure shows "Couldn't connect" with Try again, plus the same 30 s auto-retry.
+- `WD.connect()` can be called again after a failure: it skips `initializeApp` and `useEmulator` when the app already exists.
+- Booth iPads and the big screen reuse their IDs, so they aren't affected. Phones on mobile data have their own IPs.
+- **Leave Firebase Authentication's "Automatic clean-up" (deleting anonymous accounts older than 30 days) OFF** (advised to the user). Stored anonymous accounts cost nothing and don't limit sessions. Clean-up would delete the big screen's ID between events, so it would lose ownership of its room code (`claimRoom()` then picks a new one) and the booth iPads would need setting up again. Don't upgrade to Identity Platform.
+- Test hook: `?failauth=N` (emulator only) makes the first N connection attempts fail with `auth/too-many-requests` (`tests/wifi.py`).
+
 ### Results / CSV (on the big screen only)
 - `wildlife_detectives_live_players_<date>.csv`: one row per player per game.
 - `wildlife_detectives_live_answers_<date>.csv`: one row per player per clip, with the answer, the correct answer and the points.
@@ -134,10 +144,10 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
   - run the emulator jar directly on port 9000;
   - PUT `database.rules.json` to `/.settings/rules.json?ns=demo-wd` with `Authorization: Bearer owner`;
   - serve the repo with `python3 -m http.server 8080`;
-  - run `tests/e2e.py`, `tests/booth.py` and `tests/ui.py`.
+  - run `tests/e2e.py`, `tests/booth.py`, `tests/ui.py` and `tests/wifi.py`.
 - In the cloud sandbox, `firebase emulators:start` fails to load rules because the CLI's traffic goes through the outbound proxy. Running the jar directly avoids it.
 - `--noproxy '*'` is needed for curl to reach localhost.
 - Sandbox Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. It has no H.264, so test clips are VP9 WebM.
 - Safari-engine check: WebKitGTK 2.52 is available (see the single-iPad repo's CLAUDE.md for how to run it; snapshots need `python3-gi-cairo`).
-- After editing, extract each page's last `<script>` and run `node --check` on it, then run all three test files.
+- After editing, extract each page's last `<script>` and run `node --check` on it, then run all four test files.
 - **Safari engine (WebKitGTK)** harness: a Chromium big screen drives the game, and a WebKitGTK window plays as a phone or booth iPad (`index.html?room=CODE&emu=1&uid=...`). The harness injects JS that answers and reports, and snapshots are taken with `get_snapshot` (needs `python3-gi-cairo`). Run it under `xvfb-run` with `/usr/bin/python3.12`. The scripts lived in the session scratchpad (not in the repo); rebuild them from this description if needed.

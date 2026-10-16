@@ -106,7 +106,14 @@ function render() {
 function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 function draw(r) {
   if (!room) return codeView(r);
-  if (!fb) return r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, ["Connecting…"]), el("p", { class: "muted" }, [connErr || "Getting ready to play."])]));
+  if (!fb && busy) return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["📶"]),
+    el("p", { class: "big" }, ["Too many new players right now"]),
+    el("p", {}, ["Lots of people are joining over this Wi-Fi at once, and it has hit a limit for new players."]),
+    el("p", { class: "res" }, [el("b", {}, ["Turn off Wi-Fi and use mobile data"]), ", then tap Try again."]),
+    el("p", { class: "muted" }, ["Or wait a few minutes. This page also tries again by itself every 30 seconds."]),
+    el("button", { class: "btn big go", style: "width:100%;margin-top:6px", onclick: retry }, ["Try again"])]));
+  if (!fb) return r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, [connErr ? "Couldn't connect" : "Connecting…"]), el("p", { class: "muted" }, [connErr || "Getting ready to play."]),
+    connErr ? el("button", { class: "btn big", style: "width:100%;margin-top:6px", onclick: retry }, ["Try again"]) : null]));
   if (!conn.online) r.appendChild(el("p", { class: "center no" }, ["⚠ Reconnecting… (check your internet)"]));
   if (meta === null) return r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, ["No game with code " + room]), el("p", { class: "muted" }, ["Check the code on the big screen."]),
     BOOTH ? null : el("button", { class: "btn", onclick: function () { room = ""; history.replaceState(null, "", location.pathname + emuQuery()); render(); } }, ["Enter another code"])]));
@@ -121,7 +128,7 @@ function draw(r) {
   }
   ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase] ? ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase](r) : r.appendChild(el("p", { class: "center" }, ["…"]));
 }
-function emuQuery() { var s = new URLSearchParams(); ["emu", "emuhost", "emuport", "ns", "uid"].forEach(function (k) { if (Q.get(k)) s.set(k, Q.get(k)); }); var t = s.toString(); return t ? "?" + t : ""; }
+function emuQuery() { var s = new URLSearchParams(); ["emu", "emuhost", "emuport", "ns", "uid", "failauth"].forEach(function (k) { if (Q.get(k)) s.set(k, Q.get(k)); }); var t = s.toString(); return t ? "?" + t : ""; }
 
 function codeView(r) {
   var i = el("input", { type: "text", class: "codein", maxlength: 4, autocomplete: "off", autocapitalize: "characters", placeholder: "ABCD", "aria-label": "Room code", oninput: function () { i.value = WD.cleanCode(i.value); } });
@@ -235,12 +242,21 @@ async function send(q, v) {
 }
 
 /* ---------- connection ---------- */
-var connErr = "";
+var connErr = "", busy = false, retryT = null, started = false;
+/* Connecting failed: try again on a tap, and by itself every 30 s (e.g. after the player switches to mobile data). */
+function retry() { clearTimeout(retryT); connErr = ""; busy = false; render(); start(); }
 async function start() {
   if (!room) { render(); return; }
   if (!BOOTH) history.replaceState(null, "", location.pathname + "?room=" + room + (emuQuery() ? "&" + emuQuery().slice(1) : ""));
   render();
-  try { fb = await WD.connect(); } catch (e) { connErr = WD.errText(e); render(); return; }
+  if (started) return;
+  try { fb = await WD.connect(); }
+  catch (e) {
+    busy = WD.rateLimited(e); connErr = WD.errText(e);
+    if (e && e.code !== "not_configured") { clearTimeout(retryT); retryT = setTimeout(retry, 30000); }
+    render(); return;
+  }
+  started = true; clearTimeout(retryT); busy = false; connErr = "";
   /* restore a game this device already joined (e.g. after the page reloaded) */
   try { var l = JSON.parse(lsGet("wd_last") || "null"); if (l && l.room === room) { myName = l.name; myGame = l.game; } } catch (e) {}
   WD.watchConnection(fb.db, function (s) {

@@ -28,6 +28,7 @@ for n in 1 2 3; do ffmpeg -f lavfi -i testsrc2=size=640x360:rate=25:duration=4 -
 python3 tests/e2e.py   http://127.0.0.1:8080/ clips downloads   # big screen + 3 phones, full game, scoring, CSVs, security rules
 python3 tests/booth.py http://127.0.0.1:8080/ clips work        # booth-iPad mode, QR codes (decoded with OpenCV), early close, reload mid-game
 python3 tests/ui.py    http://127.0.0.1:8080/ clips shots       # jungle decor, button animations, scroll position, no needless redraws, Reduce Motion
+python3 tests/wifi.py  http://127.0.0.1:8080/ shots             # busy-Wi-Fi message, Try again, automatic retry (simulated with ?failauth=1)
 ```
 
 `booth.py` needs `opencv-python` to decode the QR codes.
