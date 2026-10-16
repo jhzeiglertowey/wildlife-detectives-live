@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light only">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Wildlife Detectives">
+<meta name="theme-color" content="#ffffff">
+<link rel="apple-touch-icon" href="logo.png">
+<title>Wildlife Detectives Live</title>
+<link rel="stylesheet" href="style.css">
+<style>
+/* Player page: phones and booth iPads. Big tap targets, one thing at a time. */
+body{user-select:none;-webkit-user-select:none;padding-bottom:env(safe-area-inset-bottom,0px)}
+header{padding-top:max(10px,env(safe-area-inset-top,0px))}
+#me{font-weight:700;text-align:right;line-height:1.2}
+#me small{display:block;color:var(--mute);font-weight:600}
+#main{max-width:620px;margin:0 auto;padding:16px}
+.center{text-align:center}
+.big{font-size:clamp(1.5rem,6vw,2.2rem);font-weight:800;line-height:1.2}
+.huge{font-size:clamp(3rem,16vw,5rem);line-height:1}
+.name{font-size:clamp(1.6rem,7vw,2.4rem);font-weight:800;color:var(--acc)}
+.ptiles{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:560px){.ptiles{grid-template-columns:1fr 1fr}}
+.ptiles .tile{width:100%;min-height:84px;font-size:1.25rem}
+.pchips{display:grid;grid-template-columns:1fr;gap:10px}
+@media (min-width:560px){.pchips{grid-template-columns:1fr 1fr}}
+.timer{height:10px;border-radius:999px;background:var(--line);overflow:hidden;margin:6px 0 14px}
+.timer i{display:block;height:100%;background:var(--acc);transition:width .25s linear}
+.codein{font:800 2.4rem ui-monospace,Menlo,Consolas,monospace;letter-spacing:.3em;text-align:center;text-transform:uppercase}
+.foot{text-align:center;margin:26px 0 10px}
+.foot button{background:none;border:0;color:var(--mute);font-size:.85rem;text-decoration:underline;cursor:pointer}
+.res{font-size:1.25rem;margin:.4em 0}
+.link{color:var(--acc);font-weight:800;text-decoration:underline}
+.qr{margin:10px 0}.qr svg{display:block;margin:6px auto}.qr .url{font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <img src="logo.png" alt="" style="height:30px">
+  <span class="title">Wildlife Detectives <span style="color:var(--acc)">Live</span></span>
+  <span id="me"></span>
+</header>
+<main id="main"><p class="center muted">Loading…</p></main>
+
+<script src="lib/firebase-app-compat.js"></script>
+<script src="lib/firebase-auth-compat.js"></script>
+<script src="lib/firebase-database-compat.js"></script>
+<script src="lib/qrcode.js"></script>
+<script src="firebase-config.js"></script>
+<script src="common.js"></script>
+<script>
+"use strict";
+var $ = WD.$, el = WD.el;
+var Q = new URLSearchParams(location.search);
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+
+/* Booth iPads are set up once with ?booth=1&room=CODE and remember it. */
+if (Q.get("booth") === "1") { lsSet("wd_booth", "1"); if (Q.get("room")) lsSet("wd_booth_room", WD.cleanCode(Q.get("room"))); }
+var BOOTH = lsGet("wd_booth") === "1";
+var room = WD.cleanCode(BOOTH ? lsGet("wd_booth_room") : (Q.get("room") || ""));
+
+var fb = null, conn = { online: false, offset: 0 }, meta = undefined, game = null, mine = null, result = null;
+var myName = null, myGame = null;      /* the game this device has joined */
+var autoJoin = !BOOTH;                  /* phones join as soon as they open the page; booth iPads wait for a tap */
+var sent = {};                          /* qkey -> answer sent from this device */
+var picks = {};                         /* behaviors ticked for the current question */
+var late = {};                          /* qkey -> the answer arrived after time was up */
+var refs = [];
+var resetT = null;
+
+function render() {
+  var r = $("main"); r.textContent = "";
+  $("me").textContent = ""; if (myName && myGame && game && game.id === myGame) { $("me").appendChild(document.createTextNode(myName)); if (result && result.game === myGame) $("me").appendChild(el("small", {}, [result.score + " pts"])); }
+  if (!room) return codeView(r);
+  if (!fb) return r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, ["Connecting…"]), el("p", { class: "muted" }, [connErr || "Getting ready to play."])]));
+  if (!conn.online) r.appendChild(el("p", { class: "center no" }, ["⚠ Reconnecting… (check your internet)"]));
+  if (meta === null) return r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, ["No game with code " + room]), el("p", { class: "muted" }, ["Check the code on the big screen."]),
+    BOOTH ? null : el("button", { class: "btn", onclick: function () { room = ""; history.replaceState(null, "", location.pathname + emuQuery()); render(); } }, ["Enter another code"])]));
+  if (!game || game.phase === "closed") return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["🌳"]), el("p", { class: "big" }, ["Waiting for the next game…"]), el("p", { class: "muted" }, ["Look at the big screen."])]));
+  var joined = myGame === game.id && mine && mine.game === game.id;
+  if (!joined) {
+    if (game.phase === "final") return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["🏁"]), el("p", { class: "big" }, ["This game just finished."]), el("p", { class: "muted" }, ["A new one will start soon. Look at the big screen."])]));
+    if (autoJoin && !BOOTH) { join(); return r.appendChild(el("p", { class: "center big" }, ["Joining…"])); }
+    return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["🔍"]), el("p", { class: "big" }, ["Wildlife Detectives"]),
+      el("p", { class: "muted" }, ["Watch camera-trap videos on the big screen and spot the animals!"]),
+      el("button", { class: "btn big", style: "width:100%;margin-top:10px", onclick: function () { autoJoin = true; join(); } }, ["▶ Tap to play"])]));
+  }
+  ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase] ? ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase](r) : r.appendChild(el("p", { class: "center" }, ["…"]));
+}
+function emuQuery() { var s = new URLSearchParams(); ["emu", "emuhost", "emuport", "ns", "uid"].forEach(function (k) { if (Q.get(k)) s.set(k, Q.get(k)); }); var t = s.toString(); return t ? "?" + t : ""; }
+
+function codeView(r) {
+  var i = el("input", { type: "text", class: "codein", maxlength: 4, autocomplete: "off", autocapitalize: "characters", placeholder: "ABCD", "aria-label": "Room code", oninput: function () { i.value = WD.cleanCode(i.value); } });
+  function go() { var c = WD.cleanCode(i.value); if (c.length !== 4) { m.textContent = "The code has 4 letters."; return; } room = c; start(); }
+  var m = el("p", { class: "hint center" }, [""]);
+  i.onkeydown = function (e) { if (e.key === "Enter") go(); };
+  r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, ["Enter the code on the big screen"]), i, m, el("button", { class: "btn big", style: "width:100%", onclick: go }, ["Join"])]));
+  setTimeout(function () { i.focus(); }, 50);
+}
+
+function lobbyView(r) {
+  r.appendChild(el("div", { class: "card center popin" }, [el("p", { class: "big" }, ["You're in! 🎉"]), el("p", { class: "muted" }, ["Your detective name is"]), el("div", { class: "name" }, [myName]),
+    el("button", { class: "btn alt", style: "margin-top:12px", onclick: reroll }, ["🎲 New name"]),
+    el("p", { class: "muted", style: "margin-top:16px" }, ["Look for your name on the big screen. The game starts soon!"])]));
+}
+function watchView(r) {
+  r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["👀"]), el("p", { class: "big" }, ["Watch the big screen!"]),
+    el("p", { class: "muted" }, ["Clip " + (game.clip + 1) + " of " + game.total + ". Which animal is it, and what is it doing?"])]));
+}
+function timeLeft() { if (!game.startedAt) return game.seconds; return Math.max(0, game.seconds - (Date.now() + conn.offset - game.startedAt) / 1000); }
+function questionView(r) {
+  var q = game.qkey;
+  if (sent[q] != null) return r.appendChild(el("div", { class: "card center popin" }, [el("div", { class: "huge" }, ["✅"]), el("p", { class: "big" }, ["Answer sent!"]), el("p", { class: "muted" }, ["Waiting for the other players…"])]));
+  if (!game.open || late[q]) return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["⏰"]), el("p", { class: "big" }, ["Time's up!"]), el("p", { class: "muted" }, ["Get ready for the next one."])]));
+  var box = el("div", {}, [el("p", { class: "big", style: "margin-bottom:4px" }, [game.title || ""]), el("div", { class: "timer" }, [el("i", { id: "tbar" })])]);
+  if (!game.multi) {
+    box.appendChild(el("div", { class: "ptiles" }, (game.choices || []).map(function (x, k) { var t = WD.TILES[k % 4];
+      return el("button", { class: "tile", style: { background: t.color }, "aria-label": x + " (" + t.label + ")", onclick: function () { send(q, x); } }, [el("span", { class: "shape" }, [t.shape]), x]); })));
+  } else {
+    picks[q] = picks[q] || {};
+    var done = el("button", { class: "btn big", style: "width:100%;margin-top:14px", disabled: !Object.keys(picks[q]).some(function (k) { return picks[q][k]; }), onclick: function () {
+      send(q, JSON.stringify((game.choices || []).filter(function (b) { return picks[q][b]; }))); } }, ["Done ✓"]);
+    box.appendChild(el("p", { class: "muted" }, ["Pick everything you saw it doing, then tap Done."]));
+    box.appendChild(el("div", { class: "pchips" }, (game.choices || []).map(function (b) {
+      return el("button", { class: "chip" + (picks[q][b] ? " on" : ""), onclick: function () { picks[q][b] = !picks[q][b]; this.classList.toggle("on", picks[q][b]); done.disabled = !Object.keys(picks[q]).some(function (k) { return picks[q][k]; }); } }, [b]); })));
+    box.appendChild(done);
+  }
+  r.appendChild(box); tick();
+}
+var tickT = null;
+function tick() {
+  clearTimeout(tickT);
+  var b = $("tbar"); if (!b || !game || game.phase !== "question") return;
+  b.style.width = (100 * timeLeft() / (game.seconds || 1)) + "%";
+  tickT = setTimeout(tick, 250);
+}
+function revealView(r) {
+  var L = result && result.game === myGame && result.clip === game.clip ? result.last : null, c = game.correct || {};
+  var card = el("div", { class: "card center popin" });
+  if (!L) { card.appendChild(el("p", { class: "big" }, [c.animal === WD.NO_ANIMAL ? "No animal this time!" : "It was a " + c.animal + "!"])); }
+  else {
+    card.appendChild(el("div", { class: "huge" }, [L.pts >= (L.noAnimal ? WD.ANIMAL_POINTS : WD.ANIMAL_POINTS + WD.BEHAVIOR_POINTS) ? "🌟" : L.pts > 0 ? "👍" : "🌱"]));
+    card.appendChild(el("p", { class: "res " + (L.animalOk ? "ok" : "no") }, [L.animalOk ? "✅ You spotted the " + (c.animal === WD.NO_ANIMAL ? "empty clip" : c.animal) + "!" : L.animal ? "❌ It was " + (c.animal === WD.NO_ANIMAL ? "no animal at all" : "a " + c.animal) : "⏰ No answer. It was " + (c.animal === WD.NO_ANIMAL ? "no animal at all" : "a " + c.animal)]));
+    if (!L.noAnimal) card.appendChild(el("p", { class: "res " + (L.bExact ? "ok" : L.bPts ? "part" : "no") }, [L.bExact ? "✅ You got what it was doing!" : L.bPts ? "👍 Partly right on what it was doing" : "❌ Not quite on what it was doing"]));
+    if (!L.noAnimal && c.behaviors && c.behaviors.length) card.appendChild(el("p", { class: "muted" }, ["It was: " + c.behaviors.join(", ")]));
+    card.appendChild(el("p", { class: "big" }, ["+" + L.pts + " points"]));
+    card.appendChild(el("p", { class: "muted" }, ["Total: " + result.score + " · #" + result.rank + " of " + result.of]));
+  }
+  r.appendChild(card);
+}
+function boardView(r) {
+  r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["🏆"]),
+    result && result.game === myGame ? el("p", { class: "big" }, ["You're #" + result.rank + " of " + result.of]) : null,
+    result && result.game === myGame ? el("p", { class: "muted" }, [result.score + " points so far"]) : null, el("p", { class: "muted" }, ["Next clip coming up… look at the big screen!"])]));
+}
+function finalView(r) {
+  var me = result && result.game === myGame ? result : null;
+  r.appendChild(el("div", { class: "card center popin" }, [el("div", { class: "huge" }, [me && me.rank <= 3 ? ["🥇", "🥈", "🥉"][me.rank - 1] : "🎉"]),
+    el("p", { class: "big" }, ["Great job, detective!"]),
+    me ? el("p", { class: "res" }, ["You came ", el("b", {}, ["#" + me.rank]), " of " + me.of + " with ", el("b", {}, [me.score + " points"]), "."]) : null,
+    el("p", { class: "muted" }, ["We hope you learned something new about wildlife research in the Djéké Triangle."]),
+    /* Booth iPads show a QR code to scan with your own phone (user decision); personal phones get a link they can tap. */
+    BOOTH ? el("div", { class: "qr" }, [el("p", {}, ["Learn more: scan with your phone"]), WD.qrSvg(WD.RESEARCH_URL, 180), el("p", { class: "url" }, ["congo-apes.org"])])
+      : el("p", { class: "res" }, ["Learn more at ", el("a", { href: WD.RESEARCH_URL, target: "_blank", rel: "noopener", class: "link" }, ["congo-apes.org"])]),
+    BOOTH ? el("p", { class: "hint" }, ["Please put the iPad back for the next player. 🙂"]) : null,
+    BOOTH ? null : el("button", { class: "btn big", style: "width:100%;margin-top:10px", onclick: function () { myGame = null; autoJoin = true; render(); } }, ["Play again"])]));
+  if (BOOTH) { clearTimeout(resetT); resetT = setTimeout(function () { if (game && game.phase === "final") { myGame = null; render(); } }, 25000); }
+}
+
+/* ---------- actions ---------- */
+async function takenNames() { try { var s = (await fb.db.ref("rooms/" + room + "/players").once("value")).val() || {}; return Object.keys(s).filter(function (u) { return u !== fb.uid && s[u] && game && s[u].game === game.id; }).map(function (u) { return s[u].name; }); } catch (e) { return []; } }
+var joining = false;
+async function join() {
+  if (joining || !game || !fb) return; joining = true;
+  try {
+    var g = game.id, prev = lsGet("wd_last");
+    var last = prev ? JSON.parse(prev) : null;
+    myName = last && last.game === g && last.room === room ? last.name : WD.randomName(await takenNames());
+    myGame = g; picks = {}; sent = {}; late = {};
+    lsSet("wd_last", JSON.stringify({ room: room, game: g, name: myName }));
+    await writeMe();
+  } catch (e) { myGame = null; connErr = "Couldn't join: " + WD.errText(e); }
+  joining = false; render();
+}
+async function writeMe() {
+  var me = fb.db.ref("rooms/" + room + "/players/" + fb.uid);
+  await me.onDisconnect().remove();
+  await me.set({ name: myName, game: myGame, t: WD.serverTs() });
+}
+async function reroll() {
+  myName = WD.randomName((await takenNames()).concat([myName]));
+  lsSet("wd_last", JSON.stringify({ room: room, game: myGame, name: myName }));
+  try { await writeMe(); } catch (e) {}
+  render();
+}
+async function send(q, v) {
+  if (sent[q] != null || late[q]) return;
+  sent[q] = v; render();
+  try { await fb.db.ref("rooms/" + room + "/answers/" + myGame + "/" + q + "/" + fb.uid).set(v); }
+  catch (e) { delete sent[q]; late[q] = true; render(); }
+}
+
+/* ---------- connection ---------- */
+var connErr = "";
+async function start() {
+  if (!room) { render(); return; }
+  if (!BOOTH) history.replaceState(null, "", location.pathname + "?room=" + room + (emuQuery() ? "&" + emuQuery().slice(1) : ""));
+  render();
+  try { fb = await WD.connect(); } catch (e) { connErr = WD.errText(e); render(); return; }
+  /* restore a game this device already joined (e.g. after the page reloaded) */
+  try { var l = JSON.parse(lsGet("wd_last") || "null"); if (l && l.room === room) { myName = l.name; myGame = l.game; } } catch (e) {}
+  WD.watchConnection(fb.db, function (s) {
+    var was = conn.online; conn = s;
+    if (s.online && !was && myGame && game && game.id === myGame) writeMe().catch(function () {});  /* back online: show up in the player list again */
+    render();
+  });
+  var R = fb.db.ref("rooms/" + room);
+  R.child("meta").on("value", function (s) { meta = s.val(); render(); }, function (e) { connErr = WD.errText(e); meta = null; render(); });
+  R.child("game").on("value", function (s) {
+    var g = s.val(), was = game; game = g;
+    if (g && was && was.id !== g.id) { picks = {}; sent = {}; late = {}; }
+    if (g && g.phase === "question" && was && was.qkey !== g.qkey) { /* new question */ }
+    render();
+  });
+  R.child("players/" + fb.uid).on("value", function (s) { mine = s.val(); if (!mine && myGame && game && game.id === myGame && game.phase !== "final" && conn.online) writeMe().catch(function () {}); render(); });
+  R.child("results/" + fb.uid).on("value", function (s) { result = s.val(); render(); });
+}
+if (BOOTH) {
+  var f = el("div", { class: "foot" }, [el("button", { onclick: function () {
+    if (this.dataset.armed) { lsSet("wd_booth", null); lsSet("wd_booth_room", null); location.href = location.pathname + emuQuery(); return; }
+    this.dataset.armed = "1"; this.textContent = "Tap again to stop using this iPad as a booth iPad"; var b = this; setTimeout(function () { delete b.dataset.armed; b.textContent = "Booth iPad · room " + room; }, 4000); } }, ["Booth iPad · room " + room])]);
+  document.body.appendChild(f);
+}
+start();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+/* Shared look for the big screen and the player page. Always light mode, like the single-iPad game. */
+:root{--bg:#f4f1e8;--card:#fff;--ink:#1d2a1f;--mute:#5d6b5f;--acc:#2f7d4f;--acc2:#e0a526;--bad:#c0473a;--line:#d9d4c3;color-scheme:light only}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent;
+  background-image:radial-gradient(ellipse at 50% 0%,rgba(76,175,104,.16),transparent 60%),linear-gradient(180deg,rgba(47,125,79,.06),rgba(47,125,79,.16));background-attachment:fixed}
+h1,h2,h3{margin:0 0 .4em;line-height:1.15}
+p{margin:.3em 0 .7em}
+.hide{display:none!important}
+.muted{color:var(--mute)}
+.hint{color:var(--mute);font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(20,60,35,.08)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{min-height:48px;padding:10px 18px;border:0;border-radius:12px;background:var(--acc);color:#fff;font:600 1rem system-ui,-apple-system,sans-serif;cursor:pointer;touch-action:manipulation;transition:transform .08s}
+.btn:active{transform:scale(.95)}
+.btn:disabled{opacity:.45;cursor:default;transform:none}
+.btn.alt{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.btn.warn{background:var(--bad)}
+.btn.armed{background:#d9822b;color:#fff}
+.btn.sm{min-height:38px;padding:6px 12px;font-size:.92rem}
+.btn.big{min-height:64px;font-size:1.3rem;padding:12px 28px}
+.btn.saved{background:var(--acc)!important;color:#fff!important}
+select,textarea,input[type=text],input[type=password],input[type=number],input[type=url]{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:150px}
+label{font-weight:600}
+.ok{color:var(--acc)}.part{color:#b7791f}.no{color:var(--bad)}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--card);box-shadow:0 2px 10px rgba(20,60,35,.15);position:relative;z-index:2}
+header .title{font-weight:700;font-size:1.1rem;flex:1}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--bad);vertical-align:middle}
+.dot.on{background:#3cb371}
+.conn{font-size:.85rem;color:var(--mute);white-space:nowrap}
+/* answer tiles */
+.tile{display:flex;align-items:center;gap:12px;border:0;border-radius:14px;color:#fff;font-weight:700;text-align:left;padding:14px 16px;min-height:72px;font-size:1.2rem;cursor:pointer;touch-action:manipulation;transition:transform .08s,opacity .2s}
+.tile .shape{font-size:1.5em;line-height:1;width:1.2em;text-align:center;flex:none}
+.tile:active{transform:scale(.96)}
+.tile.dim{opacity:.28}
+.tile.right{outline:5px solid #fff;box-shadow:0 0 0 9px var(--acc)}
+.chip{min-height:56px;padding:10px 12px;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;font-size:1.05rem;text-align:left;touch-action:manipulation;cursor:pointer}
+.chip.on{border-color:var(--acc);background:#e3f1e8;font-weight:700}
+.chip.on::before{content:"✓ ";color:var(--acc)}
+@keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+.popin{animation:pop .45s ease-out}
+@media (prefers-reduced-motion:reduce){.popin{animation:none}.btn,.tile{transition:none}}

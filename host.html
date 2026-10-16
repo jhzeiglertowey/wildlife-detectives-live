@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light only">
+<title>Wildlife Detectives Live – Big screen</title>
+<link rel="stylesheet" href="style.css">
+<style>
+/* Big screen: sized for a TV, laptop or iPad in landscape. */
+#main{max-width:1100px;margin:0 auto;padding:18px}
+#main.wide{max-width:none;padding:14px 20px}
+.home{text-align:center;max-width:640px;margin:30px auto}
+.home img{width:200px;max-width:60%}
+.home h1{font-size:clamp(2rem,4vw,3rem)}
+.stats{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:10px 0}
+.stats div{background:var(--bg);border-radius:12px;padding:8px 14px;min-width:120px}
+.stats b{display:block;font-size:1.6rem}
+.warn-box{background:#fbeae7;border:1px solid #e7b3aa;color:#7a2a20;border-radius:12px;padding:10px 14px;margin:10px 0;text-align:left}
+/* settings */
+.clip{border:1px solid var(--line);border-radius:12px;padding:10px;margin:10px 0;background:var(--bg)}
+.clip .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.clip .top .name{flex:1;font-weight:700;word-break:break-word}
+.clip video{width:100%;max-height:300px;background:#000;border-radius:10px;margin:8px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.opts label{display:block;font-weight:600;margin-bottom:4px}
+.radio{display:flex;gap:10px;flex-wrap:wrap}
+.radio .chip{flex:1;min-width:220px}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8rem;background:#e3f1e8;color:var(--acc);font-weight:700}
+.tag.off{background:#eee;color:#777}
+.tag.bad{background:#fbeae7;color:var(--bad)}
+/* lobby */
+.lobby{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:24px;align-items:start}
+@media (max-width:900px){.lobby{grid-template-columns:1fr}}
+.join{text-align:center}
+.join .code{font:800 clamp(2.6rem,6vw,4.4rem)/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;color:var(--acc)}
+.join .url{font-weight:700;word-break:break-all}
+.players{display:flex;flex-wrap:wrap;gap:10px;align-content:flex-start;min-height:120px}
+.pname{background:var(--card);border:2px solid var(--acc);border-radius:999px;padding:8px 16px;font-weight:700;font-size:1.15rem}
+.bigcount{font-size:clamp(1.6rem,3vw,2.4rem);font-weight:800}
+/* game */
+.stage{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:18px;align-items:start}
+.stage.full{grid-template-columns:1fr}
+@media (max-width:900px){.stage{grid-template-columns:1fr}}
+.vidbox{position:relative;background:#000;border-radius:16px;overflow:hidden;aspect-ratio:16/9}
+.vidbox video{width:100%;height:100%;object-fit:contain;display:block}
+.vidbox .badge{position:absolute;left:12px;top:12px;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;padding:6px 14px;font-weight:700}
+.vidbox .sound{position:absolute;right:12px;bottom:12px}
+.qtitle{font-size:clamp(1.5rem,2.6vw,2.4rem);font-weight:800}
+.timer{display:flex;align-items:center;gap:14px;margin:8px 0}
+.timer .num{font:800 clamp(2rem,4vw,3.2rem)/1 system-ui;min-width:2.2ch;text-align:center;color:var(--acc)}
+.timer .bar{flex:1;height:12px;border-radius:999px;background:var(--line);overflow:hidden}
+.timer .bar i{display:block;height:100%;background:var(--acc);transition:width .25s linear}
+.answered{font-size:1.2rem;font-weight:700}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.tiles .tile{cursor:default;font-size:clamp(1rem,1.6vw,1.4rem)}
+.tile .count{margin-left:auto;background:rgba(255,255,255,.25);border-radius:999px;padding:2px 12px}
+.blist{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.bitem{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:700;font-size:clamp(.95rem,1.4vw,1.2rem);display:flex;gap:8px;align-items:center}
+.bitem.right{border-color:var(--acc);background:#e3f1e8}
+.bitem .count{margin-left:auto;color:var(--mute)}
+.board{max-width:760px;margin:0 auto}
+.board h1{text-align:center;font-size:clamp(2rem,4vw,3rem)}
+.brow{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 18px;margin:10px 0;font-size:clamp(1.1rem,2vw,1.6rem);font-weight:700}
+.brow .rk{width:2.2em;text-align:center;font-size:1.2em}
+.brow .nm{flex:1}
+.brow.p1{background:#fff6dc;border-color:var(--acc2)}
+.podium{display:flex;justify-content:center;align-items:flex-end;gap:14px;margin:24px 0}
+.podium div{background:var(--card);border:2px solid var(--line);border-radius:14px 14px 0 0;width:min(26vw,230px);text-align:center;padding:12px 8px;font-weight:800}
+.podium .n{font-size:clamp(1rem,1.8vw,1.4rem)}
+.podium .s{color:var(--mute);font-weight:700}
+.podium .m{font-size:2.4rem}
+.ctrl{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.final{display:grid;grid-template-columns:1fr minmax(240px,320px);gap:20px;align-items:start}
+@media (max-width:900px){.final{grid-template-columns:1fr}}
+.qrcard{text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <img src="logo.png" alt="" style="height:34px">
+  <span class="title">Wildlife Detectives <span style="color:var(--acc)">Live</span></span>
+  <span class="conn" id="conn"><span class="dot" id="dot"></span> <span id="connText">Connecting…</span></span>
+  <button class="btn alt sm" id="gear" aria-label="Settings">⚙ Settings</button>
+</header>
+<main id="main"></main>
+
+<script src="lib/firebase-app-compat.js"></script>
+<script src="lib/firebase-auth-compat.js"></script>
+<script src="lib/firebase-database-compat.js"></script>
+<script src="lib/qrcode.js"></script>
+<script src="firebase-config.js"></script>
+<script src="common.js"></script>
+<script>
+"use strict";
+var $ = WD.$, el = WD.el;
+
+/* ======================= local storage (IndexedDB): clips, settings, past games. Videos never leave this device. ======================= */
+var idb = null;
+function openIDB() {
+  return new Promise(function (res, rej) {
+    if (!window.indexedDB) { rej(new Error("This browser can't store videos (no IndexedDB).")); return; }
+    var q = indexedDB.open("wdlive_v1", 1);
+    q.onupgradeneeded = function () { var d = q.result; ["clips", "kv", "games"].forEach(function (s) { if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: "id" }); }); };
+    q.onsuccess = function () { res(q.result); }; q.onerror = function () { rej(q.error); };
+  });
+}
+/* Writes resolve only once the transaction has committed, so "✓ Saved" is never shown for a failed save. */
+function tx(store, mode, fn) {
+  return new Promise(function (res, rej) {
+    var t = idb.transaction(store, mode), s = t.objectStore(store), out;
+    var r = fn(s); if (r) r.onsuccess = function () { out = r.result; };
+    t.oncomplete = function () { res(out); }; t.onabort = t.onerror = function () { rej(t.error || new Error("could not save")); };
+  });
+}
+function idbAll(store) { return tx(store, "readonly", function (s) { return s.getAll(); }); }
+function idbGet(store, id) { return tx(store, "readonly", function (s) { return s.get(id); }); }
+function idbPut(store, v) { return tx(store, "readwrite", function (s) { return s.put(v); }); }
+function idbDel(store, id) { return tx(store, "readwrite", function (s) { return s.delete(id); }); }
+function idbClear(store) { return tx(store, "readwrite", function (s) { return s.clear(); }); }
+
+/* ======================= state ======================= */
+var DEFAULTS = {
+  id: "settings", mode: "phones", behaviors: WD.DEF_BEHAVIORS.slice(), species: WD.DEF_SPECIES.slice(),
+  secsAnimal: 20, secsBehavior: 30, secsReveal: 8, secsBoard: 6, watchMax: 60, clipsPerGame: 0, shuffle: true, autoAdvance: true,
+  pin: "", room: "", playerUrl: ""
+};
+var cfg = Object.assign({}, DEFAULTS), clips = [], games = [];
+var view = "home", unlocked = false, msg = "", armed = null, armT = null;
+var fb = null, room = null, connState = { online: false, offset: 0 };
+var G = null;          /* the game being played */
+var vid = null;        /* one <video> element reused for every clip (iPads limit how many can play) */
+var urls = {};         /* clip id -> object URL */
+
+function urlFor(c) { if (!urls[c.id]) urls[c.id] = URL.createObjectURL(c.blob); return urls[c.id]; }
+function ready(c) { return c.active !== false && !!c.answer && (c.answer.noAnimal || !!c.answer.species); }
+function sortClips() { clips.sort(function (a, b) { return (a.order || 0) - (b.order || 0); }); }
+function say(t) { msg = t; var m = $("amsg"); if (m) m.textContent = t; }
+function flash(btn, text) { if (!btn) return; var o = btn.dataset.label || btn.textContent; btn.dataset.label = o; btn.textContent = text || "✓ Saved"; btn.classList.add("saved"); setTimeout(function () { btn.textContent = o; btn.classList.remove("saved"); }, 1400); }
+function arm(key) { armed = key; clearTimeout(armT); armT = setTimeout(function () { armed = null; render(); }, 4000); render(); }
+function saveCfg() { return idbPut("kv", cfg); }
+
+function defaultPlayerUrl() {
+  if (/^https?:$/.test(location.protocol) && !WD.isEmulator()) return new URL("index.html", location.href).toString().replace(/index\.html$/, "");
+  if (WD.isEmulator()) return new URL("index.html", location.href).toString();
+  return WD.DEFAULT_PLAYER_URL;
+}
+function joinUrl(booth) { return WD.playerUrl(cfg.playerUrl || defaultPlayerUrl(), room, booth); }
+
+/* ======================= Firebase room ======================= */
+function rref(p) { return fb.db.ref("rooms/" + room + (p ? "/" + p : "")); }
+async function claimRoom() {
+  /* Each big-screen device keeps one room code. If the code belongs to someone else (or to this device before its data was cleared), pick a new one. */
+  for (var i = 0; i < 6; i++) {
+    var code = (i === 0 && cfg.room) ? cfg.room : WD.newRoomCode();
+    try {
+      await fb.db.ref("rooms/" + code + "/meta").set({ host: fb.uid, mode: cfg.mode, created: WD.serverTs() });
+      room = code; if (cfg.room !== code) { cfg.room = code; await saveCfg(); }
+      return;
+    } catch (e) { if (!/permission/i.test(String(e && (e.code || e.message)))) throw e; }
+  }
+  throw new Error("Couldn't get a room code. Try again.");
+}
+async function connectFirebase() {
+  try {
+    fb = await WD.connect();
+    WD.watchConnection(fb.db, function (s) { connState = s; showConn(); });
+    await claimRoom();
+    showConn(); if (view === "home" || view === "settings") render();
+  } catch (e) {
+    fb = null; $("connText").textContent = "Not connected: " + WD.errText(e); $("dot").classList.remove("on");
+    if (view === "home") render();
+  }
+}
+function showConn() {
+  var on = fb && connState.online && room;
+  $("dot").classList.toggle("on", !!on);
+  $("connText").textContent = !fb ? "Not connected" : !connState.online ? "Offline — reconnecting…" : room ? "Online · room " + room : "Online";
+}
+
+/* ======================= views ======================= */
+function render() {
+  var r = $("main"); r.querySelectorAll("video").forEach(function (v) { if (v !== vid) { try { v.pause(); v.removeAttribute("src"); v.load(); } catch (e) {} } });
+  r.textContent = ""; r.classList.toggle("wide", view === "play" || view === "lobby" || view === "final");
+  $("gear").classList.toggle("hide", !!G);
+  ({ home: homeView, settings: settingsView, pin: pinView, lobby: lobbyView, play: playView, final: finalView })[view](r);
+}
+
+function homeView(r) {
+  var n = clips.filter(ready).length, players = games.reduce(function (t, g) { return t + (g.players || []).length; }, 0);
+  var w = el("div", { class: "card home" }, [
+    el("img", { src: "logo.png", alt: "Research project logo" }),
+    el("h1", {}, ["Wildlife Detectives ", el("span", { style: "color:var(--acc)" }, ["Live"])]),
+    el("p", { class: "muted" }, ["Watch real camera-trap videos from the Djéké Triangle together, and race to spot the animal and what it's doing!"]),
+    el("div", { class: "stats" }, [
+      el("div", {}, [el("b", {}, [String(n)]), "clips ready"]),
+      el("div", {}, [el("b", {}, [String(games.length)]), "games played"]),
+      el("div", {}, [el("b", {}, [String(players)]), "players so far"])])
+  ]);
+  if (msg) w.appendChild(el("p", { class: "hint", id: "amsg", style: "white-space:pre-wrap" }, [msg]));
+  if (!WD.configured() && !WD.isEmulator()) w.appendChild(el("div", { class: "warn-box" }, ["Firebase isn't set up yet, so phones and iPads can't connect. Follow \"Set up Firebase\" in README.md, then reload this page."]));
+  else if (!fb) w.appendChild(el("div", { class: "warn-box" }, ["Not connected to the game server yet. Check the internet connection. (" + $("connText").textContent + ")"]));
+  if (!n) w.appendChild(el("div", { class: "warn-box" }, ["No clips are ready. Open ⚙ Settings, add camera-trap videos and set each one's answers."]));
+  w.appendChild(el("div", { class: "row", style: "justify-content:center;margin-top:14px" }, [
+    el("button", { class: "btn big", id: "newGame", disabled: !n || !fb || !room, onclick: newGame }, ["▶ New game"])]));
+  w.appendChild(el("p", { class: "hint", style: "margin-top:10px" }, [cfg.mode === "booth" ? "Players use the booth iPads (change in Settings)." : "Players join on their own phones by scanning a QR code (change in Settings)."]));
+  r.appendChild(w);
+}
+
+function pinView(r) {
+  var i = el("input", { type: "password", inputmode: "numeric", placeholder: "PIN", "aria-label": "PIN", onkeydown: function (e) { if (e.key === "Enter") go(); } });
+  var m = el("p", { class: "hint" }, [""]);
+  function go() { if (i.value.trim() === cfg.pin) { unlocked = true; view = "settings"; render(); } else { m.textContent = "Wrong PIN."; i.value = ""; } }
+  r.appendChild(el("div", { class: "card", style: "max-width:360px;margin:40px auto" }, [el("h2", {}, ["Settings PIN"]), i, m,
+    el("div", { class: "row" }, [el("button", { class: "btn", onclick: go }, ["Unlock"]), el("button", { class: "btn alt", onclick: function () { view = "home"; render(); } }, ["Cancel"])])]));
+  setTimeout(function () { i.focus(); }, 50);
+}
+
+/* ---------- Settings ---------- */
+var draft = null, unsaved = {};
+function settingsView(r) {
+  var keepY = window.scrollY;
+  r.appendChild(el("div", { class: "row", style: "margin-bottom:12px" }, [el("h2", { style: "flex:1" }, ["Settings"]),
+    el("button", { class: "btn alt", onclick: function () { view = "home"; draft = null; render(); } }, ["← Back"])]));
+  r.appendChild(el("p", { class: "hint", id: "amsg", style: "white-space:pre-wrap" }, [msg]));
+
+  /* who plays on what */
+  var modeCard = el("div", { class: "card" }, [el("h2", {}, ["Players use"]),
+    el("div", { class: "radio" }, [
+      el("button", { class: "chip" + (cfg.mode === "phones" ? " on" : ""), onclick: function () { setMode("phones"); } }, [el("b", {}, ["Visitors' own phones"]), el("div", { class: "hint" }, ["The big screen shows a QR code. Visitors scan it and play on their phones (mobile data or Wi-Fi)."])]),
+      el("button", { class: "chip" + (cfg.mode === "booth" ? " on" : ""), onclick: function () { setMode("booth"); } }, [el("b", {}, ["Booth iPads"]), el("div", { class: "hint" }, ["Players pick up one of your iPads and tap Play. Set each iPad up once (below)."])])])]);
+  if (cfg.mode === "booth") {
+    if (room) {
+      var u = joinUrl(true);
+      modeCard.appendChild(el("div", { class: "row", style: "margin-top:12px;align-items:flex-start" }, [
+        WD.qrSvg(u, 150),
+        el("div", { style: "flex:1;min-width:220px" }, [el("b", {}, ["Set up each booth iPad once:"]),
+          el("ol", {}, [el("li", {}, ["On the iPad, scan this QR code with the Camera app (or type the address below into Safari)."]),
+            el("li", {}, ["In Safari, tap Share → \"Add to Home Screen\", then open the game from the Home Screen icon."]),
+            el("li", {}, ["The iPad then always joins this big screen's games. It shows \"Tap to play\" between games."])]),
+          el("p", { class: "url", style: "word-break:break-all;font-size:.9rem" }, [u])])]));
+    } else modeCard.appendChild(el("p", { class: "hint" }, ["Connect to the internet to get the booth iPad set-up link."]));
+  }
+  r.appendChild(modeCard);
+
+  /* clips */
+  var up = el("div", { class: "card" }, [el("h2", {}, ["Camera-trap clips"]),
+    el("p", { class: "hint" }, ["Videos are stored only on this device (they're never uploaded). Short clips (10–40 s) work best. MP4 (H.264) plays everywhere."])]);
+  var inp = el("input", { type: "file", accept: "video/mp4,video/quicktime,video/x-m4v,video/webm,video/*", multiple: true, onchange: function () { addFiles([].slice.call(this.files)); this.value = ""; } });
+  up.appendChild(inp);
+  if (!clips.length) up.appendChild(el("p", { class: "muted" }, ["No clips yet."]));
+  var gone = function (c) { var a = c.answer; if (!a) return []; return (a.noAnimal ? [] : [a.species]).filter(function (s) { return s && !WD.inn(cfg.species, s); }).concat((a.behaviors || []).filter(function (b) { return !WD.inn(cfg.behaviors, b); })); };
+  clips.forEach(function (c, idx) {
+    var a = c.answer, st = !a ? el("span", { class: "tag bad" }, ["⚠ answers not set"]) : c.active === false ? el("span", { class: "tag off" }, ["not in game"]) : el("span", { class: "tag" }, ["ready"]);
+    var row = el("div", { class: "clip" }, [el("div", { class: "top" }, [
+      el("span", { class: "name" }, [(idx + 1) + ". " + c.name]), st,
+      el("button", { class: "btn sm alt", disabled: idx === 0, "aria-label": "Move up", onclick: function () { moveClip(idx, -1); } }, ["↑"]),
+      el("button", { class: "btn sm alt", disabled: idx === clips.length - 1, "aria-label": "Move down", onclick: function () { moveClip(idx, 1); } }, ["↓"]),
+      el("button", { class: "btn sm" + (draft && draft.id === c.id ? "" : " alt"), onclick: function () { openDraft(c); } }, [a ? "Answers ✔" : "Set answers"]),
+      el("button", { class: "btn sm alt", onclick: async function () { c.active = c.active === false; await idbPut("clips", c); render(); } }, [c.active === false ? "Not in game" : "In game ✔"]),
+      el("button", { class: "btn sm " + (armed === "rm" + c.id ? "armed" : "alt"), onclick: async function () {
+        if (armed !== "rm" + c.id) { arm("rm" + c.id); return; }
+        armed = null; await idbDel("clips", c.id); clips = clips.filter(function (x) { return x !== c; }); if (urls[c.id]) { URL.revokeObjectURL(urls[c.id]); delete urls[c.id]; } say("Removed " + c.name + "."); render(); } }, [armed === "rm" + c.id ? "Tap again to remove" : "Remove"])])]);
+    if (a) row.appendChild(el("p", { class: "hint", style: "margin:6px 0 0" }, [(a.noAnimal ? "No animal visible" : a.species) + (a.noAnimal ? "" : " · " + ((a.behaviors || []).join(", ") || "no behaviors"))]));
+    var g = gone(c); if (g.length) row.appendChild(el("p", { class: "hint", style: "color:var(--bad)" }, ["⚠ This clip's answers use " + g.map(function (x) { return "“" + x + "”"; }).join(", ") + ", which " + (g.length > 1 ? "are" : "is") + " no longer in the choice lists. Re-check its answers."]));
+    if (draft && draft.id === c.id) row.appendChild(answerEditor(c));
+    up.appendChild(row);
+  });
+  r.appendChild(up);
+
+  /* game options */
+  function num(key, label, min, max, hint) {
+    return el("div", {}, [el("label", { for: "o_" + key }, [label]), el("input", { type: "number", id: "o_" + key, min: min, max: max, value: cfg[key] }), hint ? el("div", { class: "hint" }, [hint]) : null]);
+  }
+  function chk(key, label) { return el("label", { style: "display:flex;gap:8px;align-items:center;font-weight:600" }, [el("input", { type: "checkbox", id: "o_" + key, checked: !!cfg[key] }), label]); }
+  r.appendChild(el("div", { class: "card" }, [el("h2", {}, ["Game options"]),
+    el("div", { class: "opts" }, [
+      num("clipsPerGame", "Clips per game", 0, 50, "0 = all ready clips"),
+      num("secsAnimal", "Seconds for “Which animal?”", 5, 120),
+      num("secsBehavior", "Seconds for “What is it doing?”", 5, 180),
+      num("watchMax", "Longest time a clip plays first (s)", 5, 300, "Questions open when the clip ends, or after this long"),
+      num("secsReveal", "Seconds showing the answer", 3, 60),
+      num("secsBoard", "Seconds showing the leaderboard", 2, 60)]),
+    el("div", { class: "row", style: "margin-top:12px" }, [chk("shuffle", "Shuffle clip order each game"), chk("autoAdvance", "Move on automatically (otherwise press Next ▶)")]),
+    el("div", { class: "row", style: "margin-top:12px" }, [el("button", { class: "btn", onclick: saveOptions }, ["Save"])])]));
+
+  /* choice lists */
+  function listCard(key, title, hint, defs) {
+    var ta = el("textarea", { "aria-label": title, oninput: function () { unsaved[key] = ta.value; } });
+    ta.value = unsaved[key] != null ? unsaved[key] : cfg[key].join("\n");
+    return el("div", { class: "card" }, [el("h2", {}, [title]), el("p", { class: "hint" }, [hint]), ta,
+      el("div", { class: "row", style: "margin-top:8px" }, [
+        el("button", { class: "btn", id: "save_" + key, onclick: async function () {
+          var list = ta.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean).filter(function (s, i, a) { return a.indexOf(s) === i; });
+          if (list.length < (key === "species" ? 2 : 1)) { say(key === "species" ? "Keep at least 2 animals." : "Keep at least 1 behavior."); return; }
+          cfg[key] = list; try { await saveCfg(); } catch (e) { say("Could not save: " + e.message); return; }
+          delete unsaved[key]; say("Saved."); render(); flash($("save_" + key)); } }, ["Save"]),
+        el("button", { class: "btn alt", onclick: function () { ta.value = defs.join("\n"); unsaved[key] = ta.value; flash(this, "✓ Defaults restored"); say("Defaults restored in the box. Press Save to keep them."); } }, ["Reset to defaults"])])]);
+  }
+  r.appendChild(listCard("behaviors", "Behavior choices", "One per line. Players pick from these for “What is it doing?”.", WD.DEF_BEHAVIORS));
+  r.appendChild(listCard("species", "Animal choices", "One per line. Each “Which animal?” question shows the right animal plus 3 others from this list (never “Other / unsure”).", WD.DEF_SPECIES));
+
+  /* results */
+  var nPlayers = games.reduce(function (t, g) { return t + (g.players || []).length; }, 0);
+  r.appendChild(el("div", { class: "card" }, [el("h2", {}, ["Results"]),
+    el("div", { class: "stats", style: "justify-content:flex-start" }, [el("div", {}, [el("b", {}, [String(games.length)]), "games"]), el("div", {}, [el("b", {}, [String(nPlayers)]), "players"])]),
+    el("div", { class: "row" }, [
+      el("button", { class: "btn alt", onclick: function () { downloadPlayers(); flash(this, "✓ Downloaded"); } }, ["Download players (CSV)"]),
+      el("button", { class: "btn alt", onclick: function () { downloadAnswers(); flash(this, "✓ Downloaded"); } }, ["Download answers (CSV)"]),
+      el("button", { class: "btn " + (armed === "reset" ? "armed" : "alt"), onclick: async function () {
+        if (armed !== "reset") { arm("reset"); return; }
+        armed = null; await idbClear("games"); games = []; say("All games, players and answers on this device were cleared."); render(); } }, [armed === "reset" ? "Tap again to confirm" : "Reset count & answers"])]),
+    el("p", { class: "hint" }, ["Results are kept on this big-screen device only. Download the CSVs after each event."])]));
+
+  /* connection + PIN */
+  var urlIn = el("input", { type: "url", value: cfg.playerUrl, placeholder: defaultPlayerUrl(), "aria-label": "Player page address" });
+  var pinIn = el("input", { type: "password", inputmode: "numeric", value: unsaved.pin != null ? unsaved.pin : cfg.pin, placeholder: "No PIN", "aria-label": "Settings PIN", oninput: function () { unsaved.pin = pinIn.value; } });
+  r.appendChild(el("div", { class: "card" }, [el("h2", {}, ["Connection"]),
+    el("p", {}, ["Status: ", el("b", {}, [$("connText").textContent])]),
+    el("p", {}, ["Room code: ", el("b", {}, [room || "—"]), " ",
+      el("button", { class: "btn sm " + (armed === "newroom" ? "armed" : "alt"), disabled: !fb, onclick: async function () {
+        if (armed !== "newroom") { arm("newroom"); return; }
+        armed = null; cfg.room = ""; try { await claimRoom(); say("New room code: " + room + (cfg.mode === "booth" ? ". Set the booth iPads up again with the new link." : ".")); } catch (e) { say("Could not get a new code: " + WD.errText(e)); } showConn(); render(); } },
+        [armed === "newroom" ? "Tap again (booth iPads must be set up again)" : "New room code"])]),
+    el("label", {}, ["Player page address"]), urlIn,
+    el("p", { class: "hint" }, ["Where phones and iPads open the game. Leave empty to use " + defaultPlayerUrl()]),
+    el("div", { class: "row" }, [el("button", { class: "btn", onclick: async function () { cfg.playerUrl = urlIn.value.trim(); await saveCfg(); flash(this); render(); } }, ["Save address"])])]));
+  r.appendChild(el("div", { class: "card" }, [el("h2", {}, ["Settings PIN"]), el("p", { class: "hint" }, ["Optional. Stops visitors opening Settings on the big screen. Leave empty for no PIN."]), pinIn,
+    el("div", { class: "row", style: "margin-top:8px" }, [el("button", { class: "btn", onclick: async function () { cfg.pin = pinIn.value.trim(); delete unsaved.pin; await saveCfg(); flash(this, cfg.pin ? "✓ PIN saved" : "✓ PIN removed"); } }, ["Save PIN"])])]));
+  if (keepY) window.scrollTo(0, keepY);
+}
+
+async function setMode(m) {
+  cfg.mode = m; await saveCfg();
+  if (fb && room) try { await rref("meta").set({ host: fb.uid, mode: m, created: WD.serverTs() }); } catch (e) {}
+  render();
+}
+async function saveOptions(ev) {
+  var b = ev.currentTarget, ok = true;
+  [["clipsPerGame", 0, 50], ["secsAnimal", 5, 120], ["secsBehavior", 5, 180], ["watchMax", 5, 300], ["secsReveal", 3, 60], ["secsBoard", 2, 60]].forEach(function (k) {
+    var v = Math.round(+$("o_" + k[0]).value); if (isNaN(v) || v < k[1] || v > k[2]) { ok = false; say("“" + $("o_" + k[0]).previousSibling.textContent + "” must be between " + k[1] + " and " + k[2] + "."); } else cfg[k[0]] = v; });
+  cfg.shuffle = $("o_shuffle").checked; cfg.autoAdvance = $("o_autoAdvance").checked;
+  if (!ok) return;
+  try { await saveCfg(); say("Game options saved."); flash(b); } catch (e) { say("Could not save: " + e.message); }
+}
+async function moveClip(i, d) {
+  var a = clips[i], b = clips[i + d]; if (!a || !b) return;
+  clips[i] = b; clips[i + d] = a; clips.forEach(function (c, k) { c.order = k; });
+  await Promise.all([idbPut("clips", a), idbPut("clips", b)]); render();
+}
+
+/* Checks the browser can play a file before storing it (many camera-trap .avi files and HEVC videos won't). */
+function checkPlayable(file) {
+  return new Promise(function (res) {
+    var v = document.createElement("video"), u = URL.createObjectURL(file), done = false;
+    v.muted = true; v.preload = "metadata"; v.style.cssText = "position:fixed;left:-9999px;width:2px;height:2px";
+    function fin(ok, why) { if (done) return; done = true; clearTimeout(t); v.removeAttribute("src"); v.load(); v.remove(); URL.revokeObjectURL(u); res({ ok: ok, why: why, dur: ok ? v.duration : 0 }); }
+    var t = setTimeout(function () { fin(false, "the browser didn't respond while opening it"); }, 15000);
+    v.onloadedmetadata = function () { fin(v.videoWidth > 0, v.videoWidth > 0 ? "" : "it has no picture this browser can show"); };
+    v.onerror = function () { fin(false, "this browser can't play this kind of video"); };
+    document.body.appendChild(v); v.src = u;
+  });
+}
+async function addFiles(files) {
+  var added = 0, probs = [];
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i]; say("Checking " + f.name + " (" + (i + 1) + " of " + files.length + ")…");
+    var ok = await checkPlayable(f);
+    if (!ok.ok) { probs.push(f.name + ": " + ok.why + ". Convert it to MP4 (H.264), e.g. ffmpeg -i \"" + f.name + "\" -c:v libx264 -crf 18 -c:a aac out.mp4"); continue; }
+    var c = { id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: f.name, blob: f, type: f.type, added: Date.now(), active: true, order: clips.length, answer: null };
+    try { await idbPut("clips", c); clips.push(c); added++; } catch (e) { probs.push(f.name + ": could not be stored (" + (e.message || e) + "). The device may be out of space."); }
+  }
+  say("Added " + added + " of " + files.length + " clip(s)." + (probs.length ? "\nProblems:\n" + probs.join("\n") : "") + (added ? "\nNext: press “Set answers” on each new clip." : ""));
+  render();
+}
+function openDraft(c) {
+  if (draft && draft.id === c.id) { draft = null; render(); return; }
+  var a = c.answer || {};
+  draft = { id: c.id, species: a.species || "", no: !!a.noAnimal, b: (a.behaviors || []).reduce(function (o, x) { o[x] = 1; return o; }, {}) };
+  render();
+}
+function answerEditor(c) {
+  var box = el("div", { style: "margin-top:8px" });
+  box.appendChild(el("video", { src: urlFor(c), controls: true, playsinline: true, preload: "metadata" }));
+  var sel = el("select", { "aria-label": "Animal in this clip", disabled: draft.no, onchange: function () { draft.species = sel.value; } },
+    [el("option", { value: "" }, ["Choose the animal…"])].concat(cfg.species.concat(draft.species && !WD.inn(cfg.species, draft.species) ? [draft.species] : []).map(function (s) { return el("option", { value: s, selected: s === draft.species }, [s]); })));
+  var noBtn = el("button", { class: "chip" + (draft.no ? " on" : ""), onclick: function () { draft.no = !draft.no; if (draft.no) draft.b = {}; render(); } }, ["🚫 No animal visible"]);
+  var grid = el("div", { class: "grid" }, cfg.behaviors.map(function (b) {
+    return el("button", { class: "chip" + (draft.b[b] ? " on" : ""), disabled: draft.no, onclick: function () { draft.b[b] = draft.b[b] ? 0 : 1; this.classList.toggle("on", !!draft.b[b]); } }, [b]); }));
+  var save = el("button", { class: "btn", onclick: async function () {
+    if (!draft.no && !draft.species) { say("Choose the animal (or mark “No animal visible”)."); return; }
+    var p = { noAnimal: draft.no, species: draft.no ? "" : draft.species, behaviors: draft.no ? [] : cfg.behaviors.filter(function (b) { return draft.b[b]; }) };
+    if (!draft.no && !p.behaviors.length) { say("Pick at least one behavior, so “What is it doing?” has a right answer."); return; }
+    c.answer = p; try { await idbPut("clips", c); } catch (e) { say("Could not save: " + e.message); return; }
+    flash(save); var id = c.id; setTimeout(function () { if (draft && draft.id === id) { draft = null; render(); } }, 1000); } }, ["Save answers"]);
+  box.appendChild(el("p", {}, [el("b", {}, ["Which animal?"])])); box.appendChild(sel);
+  box.appendChild(el("div", { class: "row", style: "margin:8px 0" }, [noBtn]));
+  box.appendChild(el("p", {}, [el("b", {}, ["What is it doing?"]), " ", el("span", { class: "hint" }, ["(pick all that apply)"])])); box.appendChild(grid);
+  box.appendChild(el("div", { class: "row", style: "margin-top:10px" }, [save, el("button", { class: "btn alt", onclick: function () { draft = null; render(); } }, ["Cancel"])]));
+  return box;
+}
+
+/* ======================= CSV ======================= */
+function csvCell(v) { return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"'; }
+function csv(rows) { return "﻿" + rows.map(function (r) { return r.map(csvCell).join(","); }).join("\r\n") + "\r\n"; }
+function fileDate() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function download(name, text) {
+  var a = el("a", { href: URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" })), download: name });
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function downloadPlayers() {
+  var rows = [["game_id", "game_started", "players_used", "player_name", "final_score", "max_possible", "rank", "players_in_game", "questions_answered", "questions_asked"]];
+  games.forEach(function (g) { (g.players || []).forEach(function (p) { rows.push([g.id, new Date(g.started).toISOString(), g.mode, p.name, p.score, g.maxScore, p.rank, g.players.length, p.answered, g.questions]); }); });
+  download("wildlife_detectives_live_players_" + fileDate() + ".csv", csv(rows));
+}
+function downloadAnswers() {
+  var rows = [["game_id", "game_started", "clip_name", "player_name", "animal_answer", "correct_animal", "animal_points", "behaviors_answer", "correct_behaviors", "behavior_points", "clip_points"]];
+  games.forEach(function (g) { (g.rows || []).forEach(function (x) { rows.push([g.id, new Date(g.started).toISOString(), x.clip, x.name, x.animal, x.correctAnimal, x.animalPts, x.behaviors, x.correctBehaviors, x.behaviorPts, x.pts]); }); });
+  download("wildlife_detectives_live_answers_" + fileDate() + ".csv", csv(rows));
+}
+
+/* ======================= the game ======================= */
+var CANCEL = { cancelled: true };
+function check() { if (!G || G.cancelled) throw CANCEL; }
+/* Waits for a timer, the Next button, a condition, or the game being ended, whichever comes first. */
+function waitUntil(ms, cond) {
+  return new Promise(function (res) {
+    var done = false, t = ms != null ? setTimeout(function () { fin("time"); }, ms) : null;
+    var iv = setInterval(function () { if (!G || G.cancelled) fin("cancel"); else if (cond && cond()) fin("cond"); }, 200);
+    function fin(why) { if (done) return; done = true; clearTimeout(t); clearInterval(iv); if (G) G.next = null; res(why); }
+    if (G) G.next = function () { fin("next"); };
+  });
+}
+function nextOrAuto(secs) { return waitUntil(cfg.autoAdvance ? secs * 1000 : null); }
+function base() { return { id: G.id, total: G.clips.length, mode: cfg.mode }; }
+function setGame(p) { G.state = Object.assign(base(), p); return rref("game").set(G.state); }
+function present() { var n = []; for (var u in G.present) if (G.present[u] && G.present[u].game === G.id) n.push(u); return n; }
+
+async function newGame() {
+  var pool = clips.filter(ready);
+  if (!pool.length || !fb || !room) return;
+  if (cfg.shuffle) pool = WD.shuffle(pool);
+  if (cfg.clipsPerGame > 0) pool = pool.slice(0, cfg.clipsPerGame);
+  G = { id: "g" + Date.now().toString(36), clips: pool, i: -1, names: {}, scores: {}, answered: {}, rows: [], started: Date.now(), present: {}, ans: {}, cancelled: false, phase: "lobby" };
+  if (!vid) { vid = el("video", { playsinline: true, preload: "auto" }); vid.setAttribute("webkit-playsinline", ""); }
+  vid.src = urlFor(pool[0]);
+  try {
+    await rref("meta").set({ host: fb.uid, mode: cfg.mode, created: WD.serverTs() });
+    await Promise.all([rref("answers").remove(), rref("results").remove(), rref("players").remove()]);
+    await setGame({ phase: "lobby", clip: -1, open: false });
+  } catch (e) { G = null; say("Couldn't start: " + WD.errText(e)); render(); return; }
+  G.playersRef = rref("players");
+  G.playersCb = G.playersRef.on("value", function (s) {
+    if (!G) return; G.present = s.val() || {};
+    for (var u in G.present) if (G.present[u] && G.present[u].game === G.id) { G.names[u] = G.present[u].name; if (!(u in G.scores)) { G.scores[u] = 0; G.answered[u] = 0; } }
+    if (G.phase === "lobby") drawLobbyPlayers(); else updateAnswered();
+  });
+  try { if (navigator.wakeLock) G.wake = await navigator.wakeLock.request("screen"); } catch (e) {}
+  view = "lobby"; render();
+}
+function lobbyView(r) {
+  var phones = cfg.mode !== "booth", u = joinUrl(false);
+  var join = el("div", { class: "card join" }, phones ? [
+    el("h2", {}, ["Join on your phone!"]), WD.qrSvg(u, 260),
+    el("p", { class: "hint", style: "margin-top:8px" }, ["Scan with your phone camera, or go to"]), el("p", { class: "url" }, [u.replace(/^https?:\/\//, "").replace(/\?.*$/, "")]),
+    el("p", {}, ["and enter the code"]), el("div", { class: "code" }, [room])
+  ] : [
+    el("h2", {}, ["Grab a booth iPad!"]), el("div", { style: "font-size:5rem" }, ["📱"]),
+    el("p", { style: "font-size:1.3rem" }, ["Tap ", el("b", {}, ["Play"]), " on any of the booth iPads to join."]), el("p", { class: "hint" }, ["Room " + room])
+  ]);
+  var count = el("div", { class: "bigcount", id: "pcount" }, ["0 players"]);
+  var list = el("div", { class: "players", id: "plist" });
+  r.appendChild(el("div", { class: "lobby" }, [join, el("div", { class: "card" }, [
+    el("h1", { style: "font-size:clamp(1.8rem,3.4vw,2.8rem)" }, ["Wildlife Detectives ", el("span", { style: "color:var(--acc)" }, ["Live"])]),
+    el("p", { class: "muted" }, [G.clips.length + " camera-trap clip" + (G.clips.length > 1 ? "s" : "") + ". For each one: which animal is it, and what is it doing?"]),
+    count, list,
+    el("div", { class: "ctrl" }, [el("button", { class: "btn alt", onclick: endGame }, ["Cancel"]),
+      el("button", { class: "btn big", id: "startBtn", disabled: true, onclick: startPlay }, ["Start game ▶"])])])]));
+  drawLobbyPlayers();
+}
+function drawLobbyPlayers() {
+  var l = $("plist"); if (!l) return;
+  var ids = present(); $("pcount").textContent = ids.length + (ids.length === 1 ? " player" : " players");
+  var have = {}; [].slice.call(l.children).forEach(function (c) { have[c.dataset.uid] = c; });
+  ids.forEach(function (u) { if (!have[u]) l.appendChild(el("span", { class: "pname popin", "data-uid": u }, [G.names[u]])); else { have[u].textContent = G.names[u]; delete have[u]; } });
+  for (var k in have) have[k].remove();
+  $("startBtn").disabled = !ids.length;
+}
+function startPlay(ev) {
+  /* This tap lets the video play with sound later (browsers only allow sound after the user has tapped). */
+  try { var p = vid.play(); if (p && p.then) p.then(function () { vid.pause(); vid.currentTime = 0; }).catch(function () {}); } catch (e) {}
+  view = "play";
+  runClips().catch(function (e) { if (e !== CANCEL) { console.error("game stopped", e); say("The game stopped: " + WD.errText(e)); endGame(); } });
+}
+
+async function runClips() {
+  for (var i = 0; i < G.clips.length; i++) {
+    check(); G.i = i; var c = G.clips[i], a = c.answer;
+    await phaseWatch(i, c);
+    var correctAnimal = a.noAnimal ? WD.NO_ANIMAL : a.species;
+    var choices = animalChoices(correctAnimal);
+    var qa = "c" + i + "a", qb = "c" + i + "b";
+    await ask(i, qa, "animal", "Which animal is this?", choices, false, cfg.secsAnimal);
+    if (!a.noAnimal) await ask(i, qb, "behavior", "What is it doing?", cfg.behaviors.slice(), true, cfg.secsBehavior);
+    check();
+    var counts = scoreClip(i, c, qa, qb, correctAnimal, choices);
+    await setGame({ phase: "reveal", clip: i, kind: a.noAnimal ? "animal" : "both", choices: choices, behaviors: cfg.behaviors.slice(), correct: { animal: correctAnimal, behaviors: a.behaviors || [] },
+      /* counts as lists in the same order as the choices: behavior names like "Feeding/foraging" can't be Firebase keys */
+      counts: { animal: choices.map(function (x) { return counts.animal[x] || 0; }), behavior: cfg.behaviors.map(function (x) { return counts.behavior[x] || 0; }) }, open: false });
+    G.phase = "reveal"; G.reveal = { choices: choices, correct: correctAnimal, behaviors: a.behaviors || [], counts: counts, noAnimal: a.noAnimal }; render();
+    await nextOrAuto(cfg.secsReveal); check();
+    if (i < G.clips.length - 1) {
+      await setGame({ phase: "board", clip: i, open: false }); G.phase = "board"; render();
+      await nextOrAuto(cfg.secsBoard); check();
+    }
+  }
+  await finish();
+}
+/* The right animal plus 3 others from the animal list, in random order. "Other / unsure" is never offered. */
+function animalChoices(correct) {
+  var others = WD.shuffle(cfg.species.filter(function (s) { return s !== correct && !/other|unsure/i.test(s); })).slice(0, 3);
+  return WD.shuffle([correct].concat(others));
+}
+async function phaseWatch(i, c) {
+  G.phase = "watch"; G.q = null;
+  await setGame({ phase: "watch", clip: i, open: false });
+  if (vid.dataset.clip !== c.id) { vid.src = urlFor(c); vid.dataset.clip = c.id; }
+  vid.loop = false; vid.muted = false; vid.currentTime = 0; G.soundBlocked = false;
+  render();
+  try { await vid.play(); } catch (e) { vid.muted = true; G.soundBlocked = true; try { await vid.play(); } catch (e2) { G.videoProblem = true; } render(); }
+  var ended = false; vid.onended = function () { ended = true; };
+  await waitUntil(cfg.watchMax * 1000, function () { return ended; }); check();
+  vid.onended = null; vid.loop = true; vid.muted = true; if (vid.paused) vid.play().catch(function () {});
+}
+async function ask(i, qkey, kind, title, choices, multi, secs) {
+  check();
+  G.phase = "question"; G.q = { qkey: qkey, kind: kind, title: title, choices: choices, multi: multi, secs: secs, t0: Date.now() };
+  G.ans[qkey] = {};
+  var ar = rref("answers/" + G.id + "/" + qkey), cb = ar.on("value", function (s) { if (G) { G.ans[qkey] = s.val() || {}; updateAnswered(); } });
+  await setGame({ phase: "question", clip: i, qkey: qkey, kind: kind, title: title, choices: choices, multi: multi, open: true, seconds: secs, startedAt: WD.serverTs() });
+  render(); tickTimer();
+  await waitUntil(secs * 1000 + 400, function () { var p = present(); return p.length > 0 && p.every(function (u) { return u in G.ans[qkey]; }); });
+  if (G) G.q.closed = true;
+  ar.off("value", cb);
+  if (!G || G.cancelled) throw CANCEL;
+  await rref("game/open").set(false);
+  /* read once more after closing, so an answer that arrived at the last moment still counts */
+  try { G.ans[qkey] = (await ar.once("value")).val() || {}; } catch (e) {}
+}
+var tickT = null;
+function tickTimer() {
+  clearTimeout(tickT);
+  if (!G || G.phase !== "question" || !G.q) return;
+  var left = Math.max(0, G.q.secs - (Date.now() - G.q.t0) / 1000), n = $("tnum"), b = $("tbar");
+  if (n) n.textContent = Math.ceil(left); if (b) b.style.width = (100 * left / G.q.secs) + "%";
+  if (left > 0 && !G.q.closed) tickT = setTimeout(tickTimer, 250);
+}
+function updateAnswered() {
+  var e = $("answered"); if (!e || !G || !G.q) return;
+  var p = present(), n = Object.keys(G.ans[G.q.qkey] || {}).length;
+  e.textContent = n + " of " + Math.max(p.length, n) + " answered";
+}
+function scoreClip(i, c, qa, qb, correctAnimal, choices) {
+  var a = c.answer, A = G.ans[qa] || {}, B = G.ans[qb] || {}, counts = { animal: {}, behavior: {} };
+  choices.forEach(function (x) { counts.animal[x] = 0; }); cfg.behaviors.forEach(function (x) { counts.behavior[x] = 0; });
+  Object.keys(G.names).forEach(function (u) {
+    var an = typeof A[u] === "string" ? A[u] : null, bs = null;
+    if (B[u] != null) { try { bs = JSON.parse(B[u]); if (!Array.isArray(bs)) bs = null; } catch (e) { bs = null; } }
+    if (an != null && an in counts.animal) counts.animal[an]++;
+    (bs || []).forEach(function (x) { if (x in counts.behavior) counts.behavior[x]++; });
+    var aOk = an === correctAnimal, aPts = aOk ? WD.ANIMAL_POINTS : 0, sb = a.noAnimal ? { pts: 0, exact: true } : bs ? WD.scoreBehaviors(bs, a.behaviors || []) : { pts: 0, exact: false };
+    var pts = aPts + sb.pts;
+    G.scores[u] = (G.scores[u] || 0) + pts;
+    G.answered[u] = (G.answered[u] || 0) + (an != null ? 1 : 0) + (bs ? 1 : 0);
+    G.last = G.last || {}; G.last[u] = { pts: pts, animalOk: aOk, animal: an, bPts: sb.pts, bExact: !!sb.exact, noAnimal: !!a.noAnimal };
+    G.rows.push({ clip: c.name, name: G.names[u], animal: an == null ? "(no answer)" : an, correctAnimal: correctAnimal, animalPts: aPts,
+      behaviors: a.noAnimal ? "(not asked)" : bs ? bs.join("; ") : "(no answer)", correctBehaviors: (a.behaviors || []).join("; "), behaviorPts: sb.pts, pts: pts });
+  });
+  G.questions = (G.questions || 0) + (a.noAnimal ? 1 : 2);
+  G.maxScore = (G.maxScore || 0) + WD.ANIMAL_POINTS + (a.noAnimal ? 0 : WD.BEHAVIOR_POINTS);
+  var ranks = rankAll(), res = {};
+  Object.keys(G.names).forEach(function (u) { res[u] = { game: G.id, score: G.scores[u], rank: ranks[u], of: Object.keys(G.names).length, clip: i, last: G.last[u] }; });
+  rref("results").set(res).catch(function () {});
+  return counts;
+}
+function rankAll() {
+  var ids = Object.keys(G.names), r = {};
+  ids.forEach(function (u) { r[u] = 1 + ids.filter(function (v) { return G.scores[v] > G.scores[u]; }).length; });
+  return r;
+}
+function sorted() { var ranks = rankAll(); return Object.keys(G.names).sort(function (a, b) { return G.scores[b] - G.scores[a] || G.names[a].localeCompare(G.names[b]); }).map(function (u) { return { uid: u, name: G.names[u], score: G.scores[u], rank: ranks[u] }; }); }
+
+async function finish() {
+  check();
+  var list = sorted();
+  await setGame({ phase: "final", clip: G.clips.length - 1, open: false, top: list.slice(0, 3).map(function (p) { return { name: p.name, score: p.score }; }) });
+  var rec = { id: G.id, started: G.started, ended: Date.now(), mode: cfg.mode, questions: G.questions || 0, maxScore: G.maxScore || 0, clips: G.clips.map(function (c) { return c.name; }),
+    players: list.map(function (p) { return { name: p.name, score: p.score, rank: p.rank, answered: G.answered[p.uid] || 0 }; }), rows: G.rows };
+  try { await idbPut("games", rec); games.push(rec); } catch (e) { say("Couldn't save this game's results on this device: " + e.message); }
+  G.phase = "final"; G.final = list; stopVideo(); view = "final"; render();
+}
+function stopVideo() { if (vid) { vid.onended = null; vid.pause(); vid.loop = false; } }
+async function endGame() {
+  if (!G) { view = "home"; render(); return; }
+  var g = G; g.cancelled = true; if (g.next) g.next();
+  if (g.playersRef) g.playersRef.off("value", g.playersCb);
+  try { if (g.wake) g.wake.release(); } catch (e) {}
+  G = null; stopVideo();
+  try { await rref("game").set({ id: g.id, phase: "closed", total: g.clips.length, mode: cfg.mode, open: false }); } catch (e) {}
+  view = "home"; render();
+}
+
+/* ---------- game screens ---------- */
+function playView(r) {
+  var c = G.clips[G.i], ph = G.phase;
+  if (ph === "board") { r.appendChild(boardView()); r.appendChild(controls()); return; }
+  var vb = el("div", { class: "vidbox" }, [vid, el("span", { class: "badge" }, ["Clip " + (G.i + 1) + " of " + G.clips.length])]);
+  if (G.soundBlocked && ph === "watch") vb.appendChild(el("button", { class: "btn sm sound", onclick: function () { vid.muted = false; G.soundBlocked = false; this.remove(); } }, ["🔊 Tap for sound"]));
+  var side = el("div", {});
+  if (ph === "watch") {
+    side.appendChild(el("div", { class: "card" }, [el("div", { class: "qtitle" }, ["👀 Watch closely!"]),
+      el("p", { style: "font-size:1.2rem" }, ["Which animal is it, and what is it doing? The questions appear on your " + (cfg.mode === "booth" ? "iPad" : "phone") + " when the clip ends."]),
+      G.videoProblem ? el("p", { class: "no" }, ["This video couldn't play on this device. Press Next ▶ to go to the questions."]) : null]));
+  } else if (ph === "question") {
+    var q = G.q;
+    var s = el("div", { class: "card" }, [el("div", { class: "qtitle" }, [q.title]),
+      el("div", { class: "timer" }, [el("span", { class: "num", id: "tnum" }, [String(q.secs)]), el("span", { class: "bar" }, [el("i", { id: "tbar", style: "width:100%" })])]),
+      el("div", { class: "answered", id: "answered" }, ["0 answered"]),
+      el("p", { class: "hint" }, [q.multi ? "Pick all that apply on your " + (cfg.mode === "booth" ? "iPad" : "phone") + ", then tap Done." : "Answer on your " + (cfg.mode === "booth" ? "iPad" : "phone") + "!"])]);
+    if (!q.multi) s.appendChild(el("div", { class: "tiles" }, q.choices.map(function (x, k) { var t = WD.TILES[k]; return el("div", { class: "tile", style: { background: t.color } }, [el("span", { class: "shape" }, [t.shape]), x]); })));
+    else s.appendChild(el("div", { class: "blist" }, q.choices.map(function (x) { return el("div", { class: "bitem" }, [x]); })));
+    side.appendChild(s);
+  } else if (ph === "reveal") {
+    var R = G.reveal, s2 = el("div", { class: "card popin" }, [el("div", { class: "qtitle" }, [R.noAnimal ? "No animal this time!" : "It's a " + R.correct + "!"])]);
+    s2.appendChild(el("div", { class: "tiles" }, R.choices.map(function (x, k) { var t = WD.TILES[k];
+      return el("div", { class: "tile" + (x === R.correct ? " right" : " dim"), style: { background: t.color } }, [el("span", { class: "shape" }, [x === R.correct ? "✓" : t.shape]), x, el("span", { class: "count" }, [String(R.counts.animal[x] || 0)])]); })));
+    if (!R.noAnimal) {
+      s2.appendChild(el("p", { style: "margin-top:14px;font-weight:800;font-size:1.2rem" }, ["What it's doing:"]));
+      s2.appendChild(el("div", { class: "blist" }, cfg.behaviors.map(function (x) { var ok = WD.inn(R.behaviors, x);
+        return el("div", { class: "bitem" + (ok ? " right" : "") }, [ok ? "✓" : "", x, el("span", { class: "count" }, [String(R.counts.behavior[x] || 0)])]); })));
+      s2.appendChild(el("p", { class: "hint" }, ["Numbers show how many players picked each answer."]));
+    }
+    side.appendChild(s2);
+  }
+  r.appendChild(el("div", { class: "stage" }, [vb, side]));
+  r.appendChild(controls());
+  updateAnswered(); if (ph === "question") tickTimer();
+}
+function controls() {
+  return el("div", { class: "ctrl" }, [
+    el("button", { class: "btn alt " + (armed === "end" ? "armed" : ""), onclick: function () { if (armed !== "end") { arm("end"); return; } armed = null; endGame(); } }, [armed === "end" ? "Tap again to end the game" : "End game"]),
+    el("button", { class: "btn big", onclick: function () { if (G && G.next) G.next(); } }, [G.phase === "question" ? "Close question ▶" : "Next ▶"])]);
+}
+function boardView() {
+  var list = sorted().slice(0, 5), w = el("div", { class: "board" }, [el("h1", {}, ["🏆 Leaderboard"]), el("p", { class: "muted", style: "text-align:center" }, ["After clip " + (G.i + 1) + " of " + G.clips.length])]);
+  list.forEach(function (p) { w.appendChild(el("div", { class: "brow popin" + (p.rank === 1 ? " p1" : "") }, [el("span", { class: "rk" }, [p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : p.rank === 3 ? "🥉" : "#" + p.rank]), el("span", { class: "nm" }, [p.name]), el("span", {}, [String(p.score)])])); });
+  if (!list.length) w.appendChild(el("p", { class: "muted", style: "text-align:center" }, ["No players yet."]));
+  return w;
+}
+function finalView(r) {
+  var list = G.final || [], top = list.slice(0, 3), medal = ["🥇", "🥈", "🥉"], order = [1, 0, 2], h = ["150px", "200px", "120px"];
+  var pod = el("div", { class: "podium" });
+  order.forEach(function (k) { var p = top[k]; if (!p) return; pod.appendChild(el("div", { class: "popin", style: { height: h[k] } }, [el("div", { class: "m" }, [medal[k]]), el("div", { class: "n" }, [p.name]), el("div", { class: "s" }, [p.score + " pts"])])); });
+  var rest = el("div", {}); list.slice(3, 10).forEach(function (p) { rest.appendChild(el("div", { class: "brow" }, [el("span", { class: "rk" }, ["#" + p.rank]), el("span", { class: "nm" }, [p.name]), el("span", {}, [String(p.score)])])); });
+  r.appendChild(el("div", { class: "final" }, [
+    el("div", { class: "card board" }, [el("h1", {}, ["🎉 Great job, detectives!"]), el("p", { class: "muted", style: "text-align:center" }, [list.length + " player" + (list.length === 1 ? "" : "s") + " · " + G.clips.length + " clip" + (G.clips.length === 1 ? "" : "s")]), pod, rest]),
+    el("div", { class: "card qrcard" }, [el("img", { src: "logo.png", alt: "Research project logo", style: "max-width:140px" }),
+      el("p", {}, ["We hope you learned something new about wildlife research in the Djéké Triangle. Learn more:"]), WD.qrSvg(WD.RESEARCH_URL, 200), el("p", { class: "url" }, [WD.RESEARCH_URL.replace(/^https:\/\//, "").replace(/\/$/, "")])])]));
+  r.appendChild(el("div", { class: "ctrl" }, [el("button", { class: "btn alt", onclick: endGame }, ["Done"]), el("button", { class: "btn big", onclick: async function () { await endGame(); newGame(); } }, ["▶ Play again"])]));
+}
+
+/* ======================= start-up ======================= */
+$("gear").onclick = function () { if (G) return; draft = null; view = cfg.pin && !unlocked ? "pin" : "settings"; render(); };
+document.addEventListener("keydown", function (e) { if (G && G.next && (e.key === " " || e.key === "ArrowRight") && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { e.preventDefault(); G.next(); } });
+(async function () {
+  try {
+    idb = await openIDB();
+    var s = await idbGet("kv", "settings"); if (s) cfg = Object.assign({}, DEFAULTS, s);
+    clips = await idbAll("clips"); sortClips(); games = (await idbAll("games")).sort(function (a, b) { return a.started - b.started; });
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  } catch (e) { msg = "Storage problem: " + (e.message || e); }
+  render();
+  connectFirebase();
+})();
+</script>
+</body>
+</html>
