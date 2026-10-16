@@ -1,0 +1,79 @@
+/* Shared look for the big screen and the player page. Always light mode, like the single-iPad game. */
+:root{--bg:#f4f1e8;--card:#fff;--ink:#1d2a1f;--mute:#5d6b5f;--acc:#2f7d4f;--acc2:#e0a526;--bad:#c0473a;--line:#d9d4c3;color-scheme:light only}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent;
+  background-image:radial-gradient(ellipse at 50% 0%,rgba(76,175,104,.16),transparent 60%),linear-gradient(180deg,rgba(47,125,79,.06),rgba(47,125,79,.16));background-attachment:fixed}
+h1,h2,h3{margin:0 0 .4em;line-height:1.15}
+p{margin:.3em 0 .7em}
+.hide{display:none!important}
+.muted{color:var(--mute)}
+.hint{color:var(--mute);font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(20,60,35,.08)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{min-height:48px;padding:10px 18px;border:0;border-radius:12px;background:var(--acc);color:#fff;font:600 1rem system-ui,-apple-system,sans-serif;cursor:pointer;touch-action:manipulation}
+.btn:disabled{opacity:.45;cursor:default;transform:none}
+.btn.alt{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.btn.warn{background:var(--bad)}
+.btn.armed{background:#fff4e0;border:1px solid #e0a500;color:#8a5a00}
+.btn.sm{min-height:38px;padding:6px 12px;font-size:.92rem}
+.btn.big{min-height:64px;font-size:1.3rem;padding:12px 28px}
+.btn.saved{background:#1e9e54!important;color:#fff!important;border-color:#1e9e54!important;animation:savedPop .4s ease-out}
+select,textarea,input[type=text],input[type=password],input[type=number],input[type=url]{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:150px}
+label{font-weight:600}
+.ok{color:var(--acc)}.part{color:#b7791f}.no{color:var(--bad)}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--card);box-shadow:0 2px 10px rgba(20,60,35,.15);position:relative;z-index:2}
+header .title{font-weight:700;font-size:1.1rem;flex:1}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--bad);vertical-align:middle}
+.dot.on{background:#3cb371}
+.conn{font-size:.85rem;color:var(--mute);white-space:nowrap}
+/* answer tiles */
+.tile{display:flex;align-items:center;gap:12px;border:0;border-radius:14px;color:#fff;font-weight:700;text-align:left;padding:14px 16px;min-height:72px;font-size:1.2rem;cursor:pointer;touch-action:manipulation;transition:transform .08s,opacity .2s}
+.tile .shape{font-size:1.5em;line-height:1;width:1.2em;text-align:center;flex:none}
+.tile.dim{opacity:.28}
+.tile.right{outline:5px solid #fff;box-shadow:0 0 0 9px var(--acc)}
+.chip{min-height:56px;padding:10px 12px;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;font-size:1.05rem;text-align:left;touch-action:manipulation;cursor:pointer}
+.chip.on{border-color:var(--acc);background:#e3f1e8;font-weight:700}
+.chip.on::before{content:"✓ ";color:var(--acc)}
+@keyframes pop{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08);opacity:1}100%{transform:scale(1)}}
+.popin{animation:pop .45s ease-out}
+
+/* ---------- button feedback (same as the single-iPad game) ----------
+   Every button, answer tile and chip shrinks while pressed and "pops" when tapped (WD.pop, re-applied after a redraw).
+   The main "go" buttons pulse gently; results bounce in. All of it turns off under Reduce Motion. */
+.btn,.tile,.chip{transition:transform .08s}
+.btn:not(:disabled):active,.tile:not(:disabled):active,.chip:not(:disabled):active{transform:scale(.94)}
+@keyframes savedPop{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+.btn.pop,.chip.pop,.tile.pop{animation:savedPop .3s ease-out}
+.btn.go{animation:goPulse 2.4s ease-out infinite}
+.btn.go.pop{animation:savedPop .3s ease-out}
+@keyframes goPulse{0%{box-shadow:0 0 0 0 rgba(47,125,79,.5)}70%,100%{box-shadow:0 0 0 16px rgba(47,125,79,0)}}
+.verdict,.bounce{display:inline-block;animation:bounceIn .6s cubic-bezier(.2,1.5,.4,1) both}
+@keyframes bounceIn{0%{transform:scale(.2) rotate(-15deg);opacity:0}100%{transform:none;opacity:1}}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:5;overflow:hidden}
+.confetti i{position:absolute;top:-30px;width:12px;height:18px;border-radius:0 100% 0 100%;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(115vh) rotate(var(--r,540deg))}}
+
+/* Jungle decor on the start and finished screens (copied from the single-iPad game; purely decorative) */
+#jungle{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;background:radial-gradient(ellipse at 50% 0%,rgba(76,175,104,.18),transparent 60%),linear-gradient(180deg,rgba(47,125,79,.10),rgba(47,125,79,.22))}
+#jungle svg{position:absolute}
+#jungle .vine{top:calc(var(--hdr,69px) - 6px);overflow:visible;width:70px;transform-origin:50% 0;animation:sway 6s ease-in-out infinite alternate}
+#jungle .vl{left:14px;height:min(52vh,420px)}
+#jungle .vr{right:20px;height:min(40vh,320px);animation-duration:7s;animation-delay:-2s}
+#jungle .vr2{right:92px;height:min(26vh,220px);animation-duration:5s;animation-delay:-4s}
+#jungle .floor{left:0;bottom:0;width:100%;height:min(22vh,200px)}
+#jungle .corner{bottom:0;width:min(34vw,300px);height:auto}
+#jungle .cl{left:-30px}
+#jungle .cr{right:-30px;transform:scaleX(-1)}
+#jungle .bfly{width:52px;top:30vh;left:-40px;animation:fly 22s linear infinite}
+#jungle .b2{width:40px;top:44vh;animation-duration:30s;animation-delay:-12s}
+#jungle .wings{transform-origin:0 0;animation:flap .25s ease-in-out infinite alternate}
+@keyframes sway{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
+@keyframes flap{from{transform:scaleX(1)}to{transform:scaleX(.35)}}
+@keyframes fly{0%{transform:translate(0,0)}25%{transform:translate(28vw,-8vh)}50%{transform:translate(55vw,4vh)}75%{transform:translate(82vw,-6vh)}100%{transform:translate(110vw,2vh)}}
+@media (prefers-reduced-motion:reduce){#jungle *{animation:none!important}}
+/* Decorated screens: the cards sit above the jungle, and the vines hang from the bottom of the (opaque) top bar. */
+#main.decor{position:relative;z-index:1;padding-bottom:min(18vh,170px)}
+#main.decor .card{box-shadow:0 10px 30px rgba(20,60,35,.18);border-top:6px solid var(--acc)}
+@media (prefers-reduced-motion:reduce){.popin,.btn.go,.verdict,.bounce,.btn.pop,.chip.pop,.tile.pop,.btn.saved{animation:none!important}.btn,.tile,.chip{transition:none}.confetti{display:none}}
