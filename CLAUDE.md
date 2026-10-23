@@ -30,9 +30,14 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
 - 2026-10-16: PR #1 (`claude/live-game`) merged into `main` by the user.
 - 2026-10-16: busy-Wi-Fi message (user request, many visitors expected on zoo Wi-Fi), on branch `claude/wifi-limit-message`.
 - 2026-10-23: the user created Firebase project `wildlife-detectives-live` and sent its web config, now in `firebase-config.js` (on `claude/wifi-limit-message`). Anonymous sign-in verified working (an account was created over REST).
-- **Couldn't verify from the sandbox:** the database itself. The cloud environment's network policy blocks `wildlife-detectives-live-default-rtdb.firebaseio.com` (proxy 403). The user would need to allow `*.firebaseio.com` in the environment's network settings, or test on real devices.
+- 2026-10-23: **tested against the real Firebase project** (after the user allowed `*.firebaseio.com` in the cloud environment's network settings):
+  - REST checks: anonymous sign-in works; the rules allow claiming a room and refuse unsigned reads, writes outside `rooms/`, bad room codes and listing all rooms.
+  - `WD_REAL=1 tests/e2e.py`: a full game with a Chromium big screen and 3 phones, each with a real anonymous account. 49/49 after a fix to the test's own clean-up check.
+  - Safari engine (WebKitGTK) as the phone, with a Chromium big screen: a full game, #1 with 400 points, the congo-apes.org link, no errors.
+  - Test rooms are deleted afterwards. A few anonymous test accounts remain under Authentication → Users (harmless).
+  - **Sandbox notes for real-Firebase tests:** launch Chromium with `proxy={"server": HTTPS_PROXY, "bypass": "127.0.0.1,localhost"}`, and trust the agent-proxy CA in `~/.pki/nssdb`. That store was empty: `apt-get install libnss3-tools`, then `certutil -A -d sql:$HOME/.pki/nssdb -n ccr-proxy-ca -t "C,," -i <CA from /root/.ccr/ca-bundle.crt, subject "CCR agent-proxy interception CA">`. TLS checking stays on. For WebKitGTK, set `WebsiteDataManager.set_network_proxy_settings(CUSTOM, NetworkProxySettings.new(HTTPS_PROXY, ["localhost","127.0.0.1"]))`.
 - **Waiting on the user:** merging the branch, then turning on GitHub Pages (Settings → Pages → `main` / root) if not done yet.
-- **Not yet tested:** a real Firebase project, real phones and iPads, H.264 clips (the sandbox Chromium can't play them; tests use VP9 WebM).
+- **Not yet tested:** real phones and iPads, H.264 clips (the sandbox Chromium can't play them; tests use VP9 WebM), Google's real new-account limit.
 
 ## Files
 

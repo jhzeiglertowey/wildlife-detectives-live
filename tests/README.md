@@ -33,3 +33,7 @@ python3 tests/wifi_real.py http://127.0.0.1:8080/ shots          # same, through
 ```
 
 `booth.py` needs `opencv-python` to decode the QR codes.
+
+## Against the real Firebase project
+
+`WD_REAL=1 python3 tests/e2e.py http://127.0.0.1:8080/ clips downloads` plays the same full game against the project in `firebase-config.js` (real anonymous sign-in and the published rules), then deletes its test room. If outbound traffic goes through a proxy, the browser uses `HTTPS_PROXY`, and the proxy's CA must be trusted in `~/.pki/nssdb` (see CLAUDE.md).
