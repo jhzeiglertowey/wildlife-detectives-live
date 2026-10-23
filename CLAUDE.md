@@ -113,6 +113,7 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
 - Booth iPads and the big screen reuse their IDs, so they aren't affected. Phones on mobile data have their own IPs.
 - **Leave Firebase Authentication's "Automatic clean-up" (deleting anonymous accounts older than 30 days) OFF** (advised to the user). Stored anonymous accounts cost nothing and don't limit sessions. Clean-up would delete the big screen's ID between events, so it would lose ownership of its room code (`claimRoom()` then picks a new one) and the booth iPads would need setting up again. Don't upgrade to Identity Platform.
 - Test hook: `?failauth=N` (emulator only) makes the first N connection attempts fail with `auth/too-many-requests` (`tests/wifi.py`).
+- `tests/wifi_real.py` runs the **real** sign-in code (not the emulator shortcut). It swaps in a dummy `firebase-config.js` and answers Google's `identitytoolkit.googleapis.com/v1/accounts:signUp` request with Google's actual refusal bodies: `TOO_MANY_ATTEMPTS_TRY_LATER` (the SDK maps it to `auth/too-many-requests`) and `QUOTA_EXCEEDED` (not mapped by the SDK; matched by its message). For both, the page shows the busy-Wi-Fi message, Try again asks Google again, and it retries by itself after 30 s (10/10, 2026-10-23). Google's real limit itself can't be triggered without the user's project and more than 100 new accounts.
 
 ### Results / CSV (on the big screen only)
 - `wildlife_detectives_live_players_<date>.csv`: one row per player per game.
