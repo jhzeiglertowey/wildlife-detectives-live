@@ -29,7 +29,9 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
 - 2026-10-16: added the original game's jungle start screen, button animations and redraw fixes (user requests), plus `tests/ui.py` (18/18). The Safari engine (WebKitGTK 2.52) played full games as a phone and as a booth iPad with no errors.
 - 2026-10-16: PR #1 (`claude/live-game`) merged into `main` by the user.
 - 2026-10-16: busy-Wi-Fi message (user request, many visitors expected on zoo Wi-Fi), on branch `claude/wifi-limit-message`.
-- **Waiting on the user:** creating the Firebase project and pasting its settings into `firebase-config.js` (README "One-time setup"), and turning on GitHub Pages (Settings → Pages → `main` / root). Until `firebase-config.js` is filled in, the pages say Firebase isn't set up.
+- 2026-10-23: the user created Firebase project `wildlife-detectives-live` and sent its web config, now in `firebase-config.js` (on `claude/wifi-limit-message`). Anonymous sign-in verified working (an account was created over REST).
+- **Couldn't verify from the sandbox:** the database itself. The cloud environment's network policy blocks `wildlife-detectives-live-default-rtdb.firebaseio.com` (proxy 403). The user would need to allow `*.firebaseio.com` in the environment's network settings, or test on real devices.
+- **Waiting on the user:** merging the branch, then turning on GitHub Pages (Settings → Pages → `main` / root) if not done yet.
 - **Not yet tested:** a real Firebase project, real phones and iPads, H.264 clips (the sandbox Chromium can't play them; tests use VP9 WebM).
 
 ## Files
