@@ -128,6 +128,7 @@ function draw(r) {
   }
   ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase] ? ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase](r) : r.appendChild(el("p", { class: "center" }, ["…"]));
 }
+function gameRunning() { return !!(myGame && game && game.id === myGame && game.phase !== "final" && game.phase !== "closed"); }
 function emuQuery() { var s = new URLSearchParams(); ["emu", "emuhost", "emuport", "ns", "uid", "failauth"].forEach(function (k) { if (Q.get(k)) s.set(k, Q.get(k)); }); var t = s.toString(); return t ? "?" + t : ""; }
 
 function codeView(r) {
@@ -261,7 +262,7 @@ async function start() {
   try { var l = JSON.parse(lsGet("wd_last") || "null"); if (l && l.room === room) { myName = l.name; myGame = l.game; } } catch (e) {}
   WD.watchConnection(fb.db, function (s) {
     var was = conn.online; conn = s;
-    if (s.online && !was && myGame && game && game.id === myGame) writeMe().catch(function () {});  /* back online: show up in the player list again */
+    if (s.online && !was && gameRunning()) writeMe().catch(function () {});  /* back online: show up in the player list again */
     render();
   });
   var R = fb.db.ref("rooms/" + room);
@@ -272,7 +273,9 @@ async function start() {
     if (g && g.phase === "question" && was && was.qkey !== g.qkey) { /* new question */ }
     render();
   });
-  R.child("players/" + fb.uid).on("value", function (s) { mine = s.val(); if (!mine && myGame && game && game.id === myGame && game.phase !== "final" && conn.online) writeMe().catch(function () {}); render(); });
+  /* If this phone's player entry disappears (e.g. it lost connection), put it back, but only while its game is still running.
+     Not after the game is over ("final"/"closed"): the big screen clears the list then, and stale entries would come back. */
+  R.child("players/" + fb.uid).on("value", function (s) { mine = s.val(); if (!mine && gameRunning() && conn.online) writeMe().catch(function () {}); render(); });
   R.child("results/" + fb.uid).on("value", function (s) { result = s.val(); render(); });
 }
 if (BOOTH) {

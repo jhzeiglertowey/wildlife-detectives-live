@@ -175,11 +175,12 @@ async def main():
         check("after reload: 3 clips ready, 1 game, 3 players", "3clips" in home.replace(" ", "") and "1games" in home.replace(" ", "") and "3players" in home.replace(" ", ""), home)
 
         if REAL:
+            await wait_text(host, "#connText", r"room [A-Z]{4}", 45)   # the reloaded big screen re-registers its room first
             left = await host.evaluate(f"""async()=>{{var d=firebase.database(),r='rooms/{room}/';
               for (const k of ['answers','results','players','game']) await d.ref(r+k).remove();
               await d.ref(r+'meta').remove(); await new Promise(res=>setTimeout(res,1500));
-              return (await d.ref('rooms/{room}').get()).exists()}}""")
-            check("test room deleted from the real database afterwards", not left)
+              return JSON.stringify((await d.ref('rooms/{room}').get()).val())}}""")
+            check("test room deleted from the real database afterwards", left == "null", left)
         allerr = herr + sum([e for _, e in players], [])
         check("no page errors", not allerr, allerr[:3])
         print("%d of %d checks passed" % (sum(R), len(R)))
