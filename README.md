@@ -33,7 +33,7 @@ You need a **Google account** for Firebase, the free service that passes answers
 Players never see a sign-in screen. This just gives each device a private ID, so nobody can answer for someone else.
 
 ### 4. Register the web app and copy its settings
-1. Click the ⚙ gear next to **Project Overview**, then **Project settings**.
+1. Open **Project settings → General**. The ⚙ gear next to **Project Overview** leads there, or use the direct link <https://console.firebase.google.com/project/_/settings/general>. (Google moves things around; you can also click **Project Overview** and look for **+ Add app** or the **`</>`** icon.)
 2. Under **Your apps**, click the **`</>`** (Web) button. Give it a nickname (e.g. `game`), leave "Firebase Hosting" unticked, and click **Register app**.
 3. You'll see a block of code with `firebaseConfig`. Copy these values: `apiKey`, `authDomain`, `projectId` and `appId`, plus the database address from step 2.4 if `databaseURL` isn't in the block.
 4. Put them into [`firebase-config.js`](firebase-config.js), replacing each `PASTE_...`. You can also send them to Claude to do it for you. These values aren't secret: Firebase web settings are public by design, and the database rules are what protect the game.
@@ -71,6 +71,8 @@ If you ever press **New room code** in Settings, set the iPads up again with the
 ### Good to know
 - **Internet:** the big screen and every phone or iPad need internet (Wi-Fi or mobile data). Only answers and scores travel over it, never videos.
 - **Free limits:** Firebase's free plan allows **about 100 devices connected at once**, which is plenty for a booth.
+- **Busy zoo Wi-Fi:** Google limits how many *new* players can join from one internet connection (about 100 per hour). If that's reached, phones show **"Too many new players right now"** and ask the visitor to switch to mobile data. They join as soon as they tap **Try again**, and the page also retries by itself every 30 seconds. Booth iPads and phones on mobile data aren't affected.
+- **Leave Authentication's "Automatic clean-up" off.** It would delete the big screen's and booth iPads' IDs between events, so the iPads would need setting up again.
 - **Keep the big screen awake.** The game asks the screen to stay on, but on an iPad also set Settings → Display → Auto-Lock to Never.
 - **iPad as the big screen:** Safari may delete stored videos from websites you haven't opened for 7 days. Add the big-screen page to the Home Screen and open it from there, or use a laptop.
 - **Before an event**, do a full practice game with a few real phones.

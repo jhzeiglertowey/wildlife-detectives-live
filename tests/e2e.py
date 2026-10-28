@@ -7,6 +7,15 @@ from playwright.async_api import async_playwright
 BASE, CLIPS, DL = sys.argv[1].rstrip("/") + "/", sys.argv[2], sys.argv[3]
 CHROME = os.environ.get("CHROME", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
 R = []
+# WD_REAL=1: run against the real Firebase project in firebase-config.js instead of the emulator. Each browser gets its
+# own real anonymous account. The browser goes through the outbound proxy if one is set (HTTPS_PROXY).
+REAL = os.environ.get("WD_REAL") == "1"
+def emu(uid): return "" if REAL else f"emu=1&uid={uid}"
+def launch_args():
+    a = {"executable_path": CHROME, "args": ["--autoplay-policy=no-user-gesture-required"]}
+    px = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+    if REAL and px: a["proxy"] = {"server": px, "bypass": "127.0.0.1,localhost"}
+    return a
 def check(name, ok, detail=""):
     R.append(bool(ok)); print(("PASS " if ok else "FAIL ") + name + ((" — " + str(detail)) if detail != "" else ""), flush=True)
 
@@ -21,11 +30,11 @@ async def wait_text(pg, sel, pattern, secs=30):
 
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(executable_path=CHROME, args=["--autoplay-policy=no-user-gesture-required"])
+        b = await p.chromium.launch(**launch_args())
         hc = await b.new_context(viewport={"width": 1280, "height": 800}, accept_downloads=True)
         host = await hc.new_page(); herr = []; host.on("pageerror", lambda e: herr.append(str(e))); host.on("console", lambda m: print("  [host console]", m.text) if m.type in ("error","warning") else None)
-        await host.goto(BASE + "host.html?emu=1&uid=host1")
-        conn = await wait_text(host, "#connText", r"room [A-Z]{4}")
+        await host.goto(BASE + "host.html?" + emu("host1"))
+        conn = await wait_text(host, "#connText", r"room [A-Z]{4}", 45)
         check("big screen connects and gets a room code", conn, conn)
         room = re.search(r"room ([A-Z]{4})", conn or "room ????").group(1)
 
@@ -62,7 +71,7 @@ async def main():
         for i in range(3):
             c = await b.new_context(viewport={"width": 390, "height": 844})
             pg = await c.new_page(); errs = []; pg.on("pageerror", lambda e, errs=errs: errs.append(str(e)))
-            await pg.goto(BASE + f"index.html?room={room}&emu=1&uid=player{i+1}")
+            await pg.goto(BASE + f"index.html?room={room}" + ("&" + emu(f"player{i+1}") if not REAL else ""))
             players.append((pg, errs))
         names = []
         for pg, _ in players:
@@ -165,6 +174,13 @@ async def main():
         home = await host.locator(".stats").first.text_content()
         check("after reload: 3 clips ready, 1 game, 3 players", "3clips" in home.replace(" ", "") and "1games" in home.replace(" ", "") and "3players" in home.replace(" ", ""), home)
 
+        if REAL:
+            await wait_text(host, "#connText", r"room [A-Z]{4}", 45)   # the reloaded big screen re-registers its room first
+            left = await host.evaluate(f"""async()=>{{var d=firebase.database(),r='rooms/{room}/';
+              for (const k of ['answers','results','players','game']) await d.ref(r+k).remove();
+              await d.ref(r+'meta').remove(); await new Promise(res=>setTimeout(res,1500));
+              return JSON.stringify((await d.ref('rooms/{room}').get()).val())}}""")
+            check("test room deleted from the real database afterwards", left == "null", left)
         allerr = herr + sum([e for _, e in players], [])
         check("no page errors", not allerr, allerr[:3])
         print("%d of %d checks passed" % (sum(R), len(R)))
