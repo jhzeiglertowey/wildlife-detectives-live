@@ -35,6 +35,10 @@ header .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .foot{text-align:center;margin:26px 0 10px}
 .foot button{background:none;border:0;color:var(--mute);font-size:.85rem;text-decoration:underline;cursor:pointer}
 .res{font-size:1.25rem;margin:.4em 0}
+/* the Done button stays at the bottom of the screen while players scroll through the behaviors */
+.donebar{position:sticky;bottom:0;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,rgba(236,240,230,0),rgba(236,240,230,.95) 35%)}
+.donebar .btn{margin-top:0!important;box-shadow:0 4px 14px rgba(20,60,35,.25)}
+@media (max-height:700px){.pchips{gap:7px}.pchips .chip{min-height:46px;padding:8px 12px;font-size:1rem}.ptiles .tile{min-height:64px}.big{font-size:1.4rem}}
 .link{color:var(--acc);font-weight:800;text-decoration:underline}
 .qr{margin:10px 0}.qr svg{display:block;margin:6px auto}.qr .url{font-weight:700}
 </style>
@@ -170,7 +174,7 @@ function questionView(r) {
     box.appendChild(el("p", { class: "muted" }, ["Pick everything you saw it doing, then tap Done."]));
     box.appendChild(el("div", { class: "pchips" }, (game.choices || []).map(function (b) {
       return el("button", { class: "chip" + (picks[q][b] ? " on" : ""), onclick: function () { picks[q][b] = !picks[q][b]; this.classList.toggle("on", picks[q][b]); done.disabled = !Object.keys(picks[q]).some(function (k) { return picks[q][k]; }); } }, [b]); })));
-    box.appendChild(done);
+    box.appendChild(el("div", { class: "donebar" }, [done]));
   }
   r.appendChild(box);
 }

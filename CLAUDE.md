@@ -45,7 +45,16 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
     - Reconnect detection never worked on either page: `WD.watchConnection` passes the same state object every time, so "was offline" was always false. It's now tracked in a separate `wasOnline`.
     - A phone that lost its connection thought it had left the game, because Firebase runs the phone's `onDisconnect` removal locally at once. It got stuck on "Joining…". `joined` is now `myGame === game.id`, no longer requiring the `players` entry.
     - After a resume, a re-asked question showed "Answer sent". Phones now forget a sent answer when the same question is asked again (new `startedAt`).
-- **Not yet tested:** real phones and iPads, H.264 clips (the sandbox Chromium can't play them; tests use VP9 WebM), Google's real new-account limit.
+  - **Published site:** `WD_REAL=1 tests/e2e.py https://jhzeiglertowey.github.io/wildlife-detectives-live/ …` played a full game from GitHub Pages on the real Firebase project: 50/50 (includes a check that the lobby's join link points to github.io).
+  - **Crowd** (new, `tests/crowd.py`): 30 players on the real Firebase project. Every answer was counted on the big screen within 2 s, and every score and rank was exact. 13/13.
+  - **Videos in Safari's engine:** see "Videos in Safari's engine" below (typed Blobs, in-memory retry, Private Browsing message).
+  - **Screen sizes** (new, `tests/sizes.py`): every screen photographed at big-screen sizes (1920×1080 TV, 1366×768 laptop, iPad 1180×820 and 820×1180) and phone sizes (320, 375, 390, 430 wide, iPad 820). It checks for sideways scrolling, clipped text, and that key buttons are reachable. Fixed:
+    - lobby name chips shrink with many players (`.players.many` above 16, `.lots` above 40);
+    - the final screen lists places 4–7 small (`.brow.sm`), then "…and N more players. Everyone's place is on their phone.";
+    - the leaderboard ends with "+ N more players. Check your phone for your place!";
+    - the big screen's control bar (Next / Close question / Play again, `.ctrl`) is sticky at the bottom, and screens under 900px tall use a compact question/reveal layout, so Next is never below the fold on a laptop or iPad;
+    - on phones the behavior screen's Done button sits in a sticky bar (`.donebar`), and screens under 700px tall use compact chips and tiles.
+- **Not yet tested:** real phones and iPads (including sound and real H.264 playback on an iPad; the sandbox Chromium can't play H.264, so tests use VP9 WebM, and WebKitGTK playback here is flaky), Google's real new-account limit.
 
 ## Files
 
@@ -181,10 +190,10 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
   - run the emulator jar directly on port 9000;
   - PUT `database.rules.json` to `/.settings/rules.json?ns=demo-wd` with `Authorization: Bearer owner`;
   - serve the repo with `python3 -m http.server 8080`;
-  - run `tests/e2e.py`, `tests/booth.py`, `tests/ui.py`, `tests/wifi.py`, `tests/wifi_real.py` and `tests/robust.py`.
+  - run `tests/e2e.py`, `tests/booth.py`, `tests/ui.py`, `tests/wifi.py`, `tests/wifi_real.py`, `tests/robust.py` and `tests/sizes.py` (and, against the real project, `WD_REAL=1 tests/e2e.py` and `tests/crowd.py`).
 - In the cloud sandbox, `firebase emulators:start` fails to load rules because the CLI's traffic goes through the outbound proxy. Running the jar directly avoids it.
 - `--noproxy '*'` is needed for curl to reach localhost.
 - Sandbox Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. It has no H.264, so test clips are VP9 WebM.
 - Safari-engine check: WebKitGTK 2.52 is available (see the single-iPad repo's CLAUDE.md for how to run it; snapshots need `python3-gi-cairo`).
-- After editing, extract each page's last `<script>` and run `node --check` on it, then run all four test files.
+- After editing, extract each page's last `<script>` and run `node --check` on it, then run all the test files.
 - **Safari engine (WebKitGTK)** harness: a Chromium big screen drives the game, and a WebKitGTK window plays as a phone or booth iPad (`index.html?room=CODE&emu=1&uid=...`). The harness injects JS that answers and reports, and snapshots are taken with `get_snapshot` (needs `python3-gi-cairo`). Run it under `xvfb-run` with `/usr/bin/python3.12`. The scripts lived in the session scratchpad (not in the repo); rebuild them from this description if needed.
