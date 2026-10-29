@@ -143,6 +143,14 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
   - Back online, `watchConnection` (with a separate `wasOnline`) rewrites `players/<uid>`.
   - The big screen doesn't wait for disconnected phones: "everyone answered" counts only the connected ones, so a phone that drops may miss a question. That's by design.
 
+### Videos in Safari's engine (tested 2026-10-29 in WebKitGTK 2.52, H.264 High + AAC, 1280×720)
+- H.264/AAC MP4 decodes and plays in the Safari engine: a full 6 s clip at 1280×720 inside a game.
+- **This container's WebKitGTK/GStreamer playback fails at random:** roughly 40% of loads give `MEDIA_ERR_SRC_NOT_SUPPORTED` (4). That happens for a Blob in memory or from IndexedDB, labelled or not, and the pattern changes run to run. It is not a game bug. Judge real playback on an iPad or Mac.
+- **Defensive changes kept:**
+  - `urlFor()` and `checkPlayable()` play from a Blob that always carries a video type (`typedBlob`/`videoType`, from the file or its name). A Blob read back from IndexedDB in WebKit has `type` "".
+  - `ensureLoaded(c)` at the start of each clip: if the stored copy doesn't load within 4 s, it copies this one clip into memory (`arrayBuffer` → new Blob) and tries again for 8 s. Only the current clip is held in memory (`memUrl`). If it still fails, `G.videoProblem` shows the "couldn't play" note and the questions still run.
+- **Private Browsing:** WebKit refuses to store videos in IndexedDB in a private session (the transaction aborts). The add-clip error message and the README say to use a normal window.
+
 ### Results / CSV (on the big screen only)
 - `wildlife_detectives_live_players_<date>.csv`: one row per player per game.
 - `wildlife_detectives_live_answers_<date>.csv`: one row per player per clip, with the answer, the correct answer and the points.

@@ -74,6 +74,7 @@ If you ever press **New room code** in Settings, set the iPads up again with the
 - **Busy zoo Wi-Fi:** Google limits how many *new* players can join from one internet connection (about 100 per hour). If that's reached, phones show **"Too many new players right now"** and ask the visitor to switch to mobile data. They join as soon as they tap **Try again**, and the page also retries by itself every 30 seconds. Booth iPads and phones on mobile data aren't affected.
 - **Leave Authentication's "Automatic clean-up" off.** It would delete the big screen's and booth iPads' IDs between events, so the iPads would need setting up again.
 - **Keep the big screen awake.** The game asks the screen to stay on, but on an iPad also set Settings → Display → Auto-Lock to Never.
+- **Don't use a Private Browsing window for the big screen.** Private windows can't keep videos, and Safari's private mode refuses to store them at all.
 - **iPad as the big screen:** Safari may delete stored videos from websites you haven't opened for 7 days. Add the big-screen page to the Home Screen and open it from there, or use a laptop.
 - **Before an event**, do a full practice game with a few real phones.
 

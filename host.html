@@ -137,7 +137,16 @@ var G = null;          /* the game being played */
 var vid = null;        /* one <video> element reused for every clip (iPads limit how many can play) */
 var urls = {};         /* clip id -> object URL */
 
-function urlFor(c) { if (!urls[c.id]) urls[c.id] = URL.createObjectURL(c.blob); return urls[c.id]; }
+/* Safari's engine (tested in WebKitGTK) refuses to play a video Blob that has no type ("MEDIA_ERR_SRC_NOT_SUPPORTED"),
+   and a type can get lost on the way through storage. So every video is played from a Blob labelled with its type,
+   taken from the file itself or, failing that, from its name. Re-wrapping a Blob doesn't copy the video. */
+function videoType(blob, name) {
+  if (blob && blob.type) return blob.type;
+  var ext = String(name || "").toLowerCase().split(".").pop();
+  return { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm", ogv: "video/ogg" }[ext] || "video/mp4";
+}
+function typedBlob(blob, name) { return blob && blob.type ? blob : new Blob([blob], { type: videoType(blob, name) }); }
+function urlFor(c) { if (!urls[c.id]) urls[c.id] = URL.createObjectURL(typedBlob(c.blob, c.name)); return urls[c.id]; }
 function ready(c) { return c.active !== false && !!c.answer && (c.answer.noAnimal || !!c.answer.species); }
 function sortClips() { clips.sort(function (a, b) { return (a.order || 0) - (b.order || 0); }); }
 function say(t) { msg = t; var m = $("amsg"); if (m) m.textContent = t; }
@@ -375,7 +384,7 @@ async function moveClip(i, d) {
 /* Checks the browser can play a file before storing it (many camera-trap .avi files and HEVC videos won't). */
 function checkPlayable(file) {
   return new Promise(function (res) {
-    var v = document.createElement("video"), u = URL.createObjectURL(file), done = false;
+    var v = document.createElement("video"), u = URL.createObjectURL(typedBlob(file, file.name)), done = false;
     v.muted = true; v.preload = "metadata"; v.style.cssText = "position:fixed;left:-9999px;width:2px;height:2px";
     function fin(ok, why) { if (done) return; done = true; clearTimeout(t); v.removeAttribute("src"); v.load(); v.remove(); URL.revokeObjectURL(u); res({ ok: ok, why: why, dur: ok ? v.duration : 0 }); }
     var t = setTimeout(function () { fin(false, "the browser didn't respond while opening it"); }, 15000);
@@ -390,8 +399,8 @@ async function addFiles(files) {
     var f = files[i]; say("Checking " + f.name + " (" + (i + 1) + " of " + files.length + ")…");
     var ok = await checkPlayable(f);
     if (!ok.ok) { probs.push(f.name + ": " + ok.why + ". Convert it to MP4 (H.264), e.g. ffmpeg -i \"" + f.name + "\" -c:v libx264 -crf 18 -c:a aac out.mp4"); continue; }
-    var c = { id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: f.name, blob: f, type: f.type, added: Date.now(), active: true, order: clips.length, answer: null };
-    try { await idbPut("clips", c); clips.push(c); added++; } catch (e) { probs.push(f.name + ": could not be stored (" + (e.message || e) + "). The device may be out of space."); }
+    var c = { id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: f.name, blob: f, type: videoType(f, f.name), added: Date.now(), active: true, order: clips.length, answer: null };
+    try { await idbPut("clips", c); clips.push(c); added++; } catch (e) { probs.push(f.name + ": could not be stored (" + (e.message || e) + "). If this is a Private Browsing window, open the game in a normal window instead (private windows can't keep videos). Otherwise the device may be out of space."); }
   }
   say("Added " + added + " of " + files.length + " clip(s)." + (probs.length ? "\nProblems:\n" + probs.join("\n") : "") + (added ? "\nNext: press “Set answers” on each new clip." : ""));
   render();
@@ -595,10 +604,37 @@ function animalChoices(correct) {
   var others = WD.shuffle(cfg.species.filter(function (s) { return s !== correct && !/other|unsure/i.test(s); })).slice(0, 3);
   return WD.shuffle([correct].concat(others));
 }
+/* Makes sure the clip can load. If the stored copy won't (in the Safari engine a video read back from storage
+   sometimes can't be played, while the same video in memory can), copy this one clip into memory and try that.
+   Only the clip currently playing is held in memory. Gives up after ~8 s, and the questions still run. */
+var memUrl = null;
+function waitLoad(ms) {
+  return new Promise(function (res) {
+    if (vid.readyState >= 1 && !vid.error) { res(true); return; }
+    var t = setTimeout(function () { fin(false); }, ms);
+    function fin(ok) { clearTimeout(t); vid.removeEventListener("loadedmetadata", okF); vid.removeEventListener("error", badF); res(ok); }
+    function okF() { fin(true); } function badF() { fin(false); }
+    vid.addEventListener("loadedmetadata", okF); vid.addEventListener("error", badF);
+    if (vid.readyState === 0 && !vid.error) try { vid.load(); } catch (e) {}
+  });
+}
+async function ensureLoaded(c) {
+  if (await waitLoad(4000)) return true;
+  try {
+    var buf = await c.blob.arrayBuffer();
+    if (memUrl) URL.revokeObjectURL(memUrl);
+    memUrl = URL.createObjectURL(new Blob([buf], { type: videoType(c.blob, c.name) }));
+    vid.src = memUrl; vid.dataset.clip = c.id;
+    if (await waitLoad(8000)) return true;
+  } catch (e) {}
+  G.videoProblem = true; return false;
+}
 async function phaseWatch(i, c) {
   G.phase = "watch"; G.q = null;
   await setGame({ phase: "watch", clip: i, open: false });
   if (vid.dataset.clip !== c.id) { vid.src = urlFor(c); vid.dataset.clip = c.id; }
+  G.videoProblem = false;
+  await ensureLoaded(c);
   vid.loop = false; vid.muted = false; vid.currentTime = 0; G.soundBlocked = false;
   render();
   try { await vid.play(); } catch (e) { vid.muted = true; G.soundBlocked = true; try { await vid.play(); } catch (e2) { G.videoProblem = true; } render(); }
