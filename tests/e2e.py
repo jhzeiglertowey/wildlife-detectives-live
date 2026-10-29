@@ -67,6 +67,9 @@ async def main():
         await host.click("#newGame"); await host.wait_for_timeout(800)
         code = (await host.locator(".join .code").text_content() or "").strip()
         check("lobby shows the room code and a QR code", code == room and await host.locator(".join svg").count() == 1, code)
+        if "github.io" in BASE:
+            shown = (await host.locator(".join .url").text_content()).strip()
+            check("on the published site, the lobby sends players to the published player page", shown == BASE.replace("https://", "").rstrip("/") + "/", shown)
         players = []
         for i in range(3):
             c = await b.new_context(viewport={"width": 390, "height": 844})

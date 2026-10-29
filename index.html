@@ -35,6 +35,10 @@ header .title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .foot{text-align:center;margin:26px 0 10px}
 .foot button{background:none;border:0;color:var(--mute);font-size:.85rem;text-decoration:underline;cursor:pointer}
 .res{font-size:1.25rem;margin:.4em 0}
+/* the Done button stays at the bottom of the screen while players scroll through the behaviors */
+.donebar{position:sticky;bottom:0;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,rgba(236,240,230,0),rgba(236,240,230,.95) 35%)}
+.donebar .btn{margin-top:0!important;box-shadow:0 4px 14px rgba(20,60,35,.25)}
+@media (max-height:700px){.pchips{gap:7px}.pchips .chip{min-height:46px;padding:8px 12px;font-size:1rem}.ptiles .tile{min-height:64px}.big{font-size:1.4rem}}
 .link{color:var(--acc);font-weight:800;text-decoration:underline}
 .qr{margin:10px 0}.qr svg{display:block;margin:6px auto}.qr .url{font-weight:700}
 </style>
@@ -79,7 +83,8 @@ var resetT = null;
 function screenKey() {
   if (!room) return "code";
   if (!fb || meta === null || !game || game.phase === "closed") return "wait";
-  var joined = myGame === game.id && mine && mine.game === game.id;
+  var joined = myGame === game.id;   /* not "&& mine": when the connection drops, Firebase removes this phone's
+     player entry locally right away (its onDisconnect). The phone is still in the game; it puts the entry back when it reconnects. */
   if (!joined) return "join:" + game.phase;
   return game.phase + ":" + (game.qkey || "") + ":" + game.clip;
 }
@@ -118,7 +123,8 @@ function draw(r) {
   if (meta === null) return r.appendChild(el("div", { class: "card center" }, [el("p", { class: "big" }, ["No game with code " + room]), el("p", { class: "muted" }, ["Check the code on the big screen."]),
     BOOTH ? null : el("button", { class: "btn", onclick: function () { room = ""; history.replaceState(null, "", location.pathname + emuQuery()); render(); } }, ["Enter another code"])]));
   if (!game || game.phase === "closed") return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["🌳"]), el("p", { class: "big" }, ["Waiting for the next game…"]), el("p", { class: "muted" }, ["Look at the big screen."])]));
-  var joined = myGame === game.id && mine && mine.game === game.id;
+  var joined = myGame === game.id;   /* not "&& mine": when the connection drops, Firebase removes this phone's
+     player entry locally right away (its onDisconnect). The phone is still in the game; it puts the entry back when it reconnects. */
   if (!joined) {
     if (game.phase === "final") return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["🏁"]), el("p", { class: "big" }, ["This game just finished."]), el("p", { class: "muted" }, ["A new one will start soon. Look at the big screen."])]));
     if (autoJoin && !BOOTH) { join(); return r.appendChild(el("p", { class: "center big" }, ["Joining…"])); }
@@ -126,6 +132,9 @@ function draw(r) {
       el("p", { class: "muted" }, ["Watch camera-trap videos on the big screen and spot the animals!"]),
       el("button", { class: "btn big go", style: "width:100%;margin-top:10px", onclick: function () { autoJoin = true; join(); } }, ["▶ Tap to play"])]));
   }
+  /* the big screen dropped out mid-game (refresh, crash, lost Wi-Fi): say so instead of showing a frozen question */
+  if (game.hostAway && /^(lobby|watch|question|reveal|board)$/.test(game.phase)) return r.appendChild(el("div", { class: "card center" }, [el("div", { class: "huge" }, ["⏸"]),
+    el("p", { class: "big" }, ["The big screen lost its connection"]), el("p", { class: "muted" }, ["Hang on! The game will carry on as soon as it's back. Your score is safe."])]));
   ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase] ? ({ lobby: lobbyView, watch: watchView, question: questionView, reveal: revealView, board: boardView, final: finalView })[game.phase](r) : r.appendChild(el("p", { class: "center" }, ["…"]));
 }
 function gameRunning() { return !!(myGame && game && game.id === myGame && game.phase !== "final" && game.phase !== "closed"); }
@@ -165,7 +174,7 @@ function questionView(r) {
     box.appendChild(el("p", { class: "muted" }, ["Pick everything you saw it doing, then tap Done."]));
     box.appendChild(el("div", { class: "pchips" }, (game.choices || []).map(function (b) {
       return el("button", { class: "chip" + (picks[q][b] ? " on" : ""), onclick: function () { picks[q][b] = !picks[q][b]; this.classList.toggle("on", picks[q][b]); done.disabled = !Object.keys(picks[q]).some(function (k) { return picks[q][k]; }); } }, [b]); })));
-    box.appendChild(done);
+    box.appendChild(el("div", { class: "donebar" }, [done]));
   }
   r.appendChild(box);
 }
@@ -243,7 +252,7 @@ async function send(q, v) {
 }
 
 /* ---------- connection ---------- */
-var connErr = "", busy = false, retryT = null, started = false;
+var wasOnline = false, connErr = "", busy = false, retryT = null, started = false;
 /* Connecting failed: try again on a tap, and by itself every 30 s (e.g. after the player switches to mobile data). */
 function retry() { clearTimeout(retryT); connErr = ""; busy = false; render(); start(); }
 async function start() {
@@ -261,7 +270,7 @@ async function start() {
   /* restore a game this device already joined (e.g. after the page reloaded) */
   try { var l = JSON.parse(lsGet("wd_last") || "null"); if (l && l.room === room) { myName = l.name; myGame = l.game; } } catch (e) {}
   WD.watchConnection(fb.db, function (s) {
-    var was = conn.online; conn = s;
+    var was = wasOnline; wasOnline = s.online; conn = s;   /* s is the same object every time, so remember the previous state separately */
     if (s.online && !was && gameRunning()) writeMe().catch(function () {});  /* back online: show up in the player list again */
     render();
   });
@@ -270,6 +279,8 @@ async function start() {
   R.child("game").on("value", function (s) {
     var g = s.val(), was = game; game = g;
     if (g && was && was.id !== g.id) { picks = {}; sent = {}; late = {}; }
+    /* the same question asked again (the big screen was refreshed and resumed the clip): forget the earlier answer here too */
+    if (g && was && g.qkey && g.phase === "question" && (was.qkey !== g.qkey || was.startedAt !== g.startedAt) && sent[g.qkey] != null && (was.phase !== "question" || was.startedAt !== g.startedAt)) { delete sent[g.qkey]; delete picks[g.qkey]; delete late[g.qkey]; }
     if (g && g.phase === "question" && was && was.qkey !== g.qkey) { /* new question */ }
     render();
   });

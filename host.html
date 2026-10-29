@@ -40,6 +40,11 @@
 .join .url{font-weight:700;word-break:break-all}
 .players{display:flex;flex-wrap:wrap;gap:10px;align-content:flex-start;min-height:120px}
 .pname{background:var(--card);border:2px solid var(--acc);border-radius:999px;padding:8px 16px;font-weight:700;font-size:1.15rem}
+/* many players: smaller name chips so the list still fits on the screen */
+.players.many{gap:6px}.players.many .pname{padding:4px 10px;font-size:.95rem;border-width:1.5px}
+.players.lots .pname{padding:3px 8px;font-size:.8rem}
+.brow.sm{padding:6px 14px;margin:6px 0;font-size:clamp(.95rem,1.4vw,1.15rem)}
+.more{text-align:center;color:var(--mute);font-weight:700;margin:8px 0}
 .bigcount{font-size:clamp(1.6rem,3vw,2.4rem);font-weight:800}
 /* game */
 .stage{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:18px;align-items:start}
@@ -74,7 +79,11 @@
 .podium .n{font-size:clamp(1rem,1.8vw,1.4rem)}
 .podium .s{color:var(--mute);font-weight:700}
 .podium .m{font-size:2.4rem}
-.ctrl{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.ctrl{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;position:sticky;bottom:10px;z-index:3}
+/* the control buttons stay on screen (sticky) even when the content is taller than a laptop or iPad screen */
+.ctrl .btn{box-shadow:0 4px 14px rgba(20,60,35,.25)}
+@media (max-height:900px){.stage{grid-template-columns:minmax(0,1.3fr) minmax(320px,1fr)}.qtitle{font-size:clamp(1.3rem,2.2vw,2rem)}
+  .tiles{gap:8px;margin-top:8px}.tiles .tile{min-height:54px;padding:8px 12px}.blist{gap:6px}.bitem{padding:6px 10px;font-size:clamp(.9rem,1.2vw,1.05rem)}}
 .final{display:grid;grid-template-columns:1fr minmax(240px,320px);gap:20px;align-items:start}
 @media (max-width:900px){.final{grid-template-columns:1fr}}
 .qrcard{text-align:center}
@@ -132,12 +141,21 @@ var DEFAULTS = {
 };
 var cfg = Object.assign({}, DEFAULTS), clips = [], games = [];
 var view = "home", unlocked = false, msg = "", armed = null, armT = null;
-var fb = null, room = null, connState = { online: false, offset: 0 };
+var fb = null, room = null, connState = { online: false, offset: 0 }, wasOnline = false;
 var G = null;          /* the game being played */
 var vid = null;        /* one <video> element reused for every clip (iPads limit how many can play) */
 var urls = {};         /* clip id -> object URL */
 
-function urlFor(c) { if (!urls[c.id]) urls[c.id] = URL.createObjectURL(c.blob); return urls[c.id]; }
+/* Safari's engine (tested in WebKitGTK) refuses to play a video Blob that has no type ("MEDIA_ERR_SRC_NOT_SUPPORTED"),
+   and a type can get lost on the way through storage. So every video is played from a Blob labelled with its type,
+   taken from the file itself or, failing that, from its name. Re-wrapping a Blob doesn't copy the video. */
+function videoType(blob, name) {
+  if (blob && blob.type) return blob.type;
+  var ext = String(name || "").toLowerCase().split(".").pop();
+  return { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm", ogv: "video/ogg" }[ext] || "video/mp4";
+}
+function typedBlob(blob, name) { return blob && blob.type ? blob : new Blob([blob], { type: videoType(blob, name) }); }
+function urlFor(c) { if (!urls[c.id]) urls[c.id] = URL.createObjectURL(typedBlob(c.blob, c.name)); return urls[c.id]; }
 function ready(c) { return c.active !== false && !!c.answer && (c.answer.noAnimal || !!c.answer.species); }
 function sortClips() { clips.sort(function (a, b) { return (a.order || 0) - (b.order || 0); }); }
 function say(t) { msg = t; var m = $("amsg"); if (m) m.textContent = t; }
@@ -169,7 +187,11 @@ async function claimRoom() {
 async function connectFirebase() {
   try {
     fb = await WD.connect();
-    WD.watchConnection(fb.db, function (s) { connState = s; showConn(); });
+    WD.watchConnection(fb.db, function (s) {
+      var was = wasOnline; wasOnline = s.online; connState = s; showConn();   /* s is the same object every time */
+      /* back online during a game: the server set hostAway when we dropped; clear it and re-arm (onDisconnect fires once) */
+      if (s.online && !was && G && G.phase !== "lobby" && G.phase !== "final" && room) { rref("game/hostAway").set(false).catch(function () {}); armAway(); }
+    });
     await claimRoom();
     showConn(); if (view === "home" || view === "settings") render();
   } catch (e) {
@@ -214,6 +236,14 @@ function homeView(r) {
   if (!WD.configured() && !WD.isEmulator()) w.appendChild(el("div", { class: "warn-box" }, ["Firebase isn't set up yet, so phones and iPads can't connect. Follow \"Set up Firebase\" in README.md, then reload this page."]));
   else if (!fb) w.appendChild(el("div", { class: "warn-box" }, ["Not connected to the game server yet. Check the internet connection. (" + $("connText").textContent + ")"]));
   if (!n) w.appendChild(el("div", { class: "warn-box" }, ["No clips are ready. Open ⚙ Settings, add camera-trap videos and set each one's answers."]));
+  var P = room ? loadProgress() : null;
+  if (P) w.appendChild(el("div", { class: "warn-box", id: "resumeBox" }, [
+    el("b", {}, ["⚠ A game was interrupted"]), " at clip " + (P.next + 1) + " of " + P.clipIds.length + " (" + Object.keys(P.names || {}).length + " players). ",
+    "Resume it to carry on with everyone's scores; the interrupted clip plays again from the start.",
+    el("div", { class: "row", style: "margin-top:8px;justify-content:center" }, [
+      el("button", { class: "btn go", id: "resumeBtn", disabled: !fb, onclick: resumeGame }, ["▶ Resume game"]),
+      el("button", { class: "btn " + (armed === "abandon" ? "armed" : "alt"), onclick: function () { if (armed !== "abandon") { arm("abandon"); return; } armed = null; abandonGame(); } },
+        [armed === "abandon" ? "Tap again to end it" : "End it"])])]));
   w.appendChild(el("div", { class: "row", style: "justify-content:center;margin-top:14px" }, [
     el("button", { class: "btn big go", id: "newGame", disabled: !n || !fb || !room, onclick: newGame }, ["▶ New game"])]));
   w.appendChild(el("p", { class: "hint", style: "margin-top:10px" }, [cfg.mode === "booth" ? "Players use the booth iPads (change in Settings)." : "Players join on their own phones by scanning a QR code (change in Settings)."]));
@@ -363,7 +393,7 @@ async function moveClip(i, d) {
 /* Checks the browser can play a file before storing it (many camera-trap .avi files and HEVC videos won't). */
 function checkPlayable(file) {
   return new Promise(function (res) {
-    var v = document.createElement("video"), u = URL.createObjectURL(file), done = false;
+    var v = document.createElement("video"), u = URL.createObjectURL(typedBlob(file, file.name)), done = false;
     v.muted = true; v.preload = "metadata"; v.style.cssText = "position:fixed;left:-9999px;width:2px;height:2px";
     function fin(ok, why) { if (done) return; done = true; clearTimeout(t); v.removeAttribute("src"); v.load(); v.remove(); URL.revokeObjectURL(u); res({ ok: ok, why: why, dur: ok ? v.duration : 0 }); }
     var t = setTimeout(function () { fin(false, "the browser didn't respond while opening it"); }, 15000);
@@ -378,8 +408,8 @@ async function addFiles(files) {
     var f = files[i]; say("Checking " + f.name + " (" + (i + 1) + " of " + files.length + ")…");
     var ok = await checkPlayable(f);
     if (!ok.ok) { probs.push(f.name + ": " + ok.why + ". Convert it to MP4 (H.264), e.g. ffmpeg -i \"" + f.name + "\" -c:v libx264 -crf 18 -c:a aac out.mp4"); continue; }
-    var c = { id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: f.name, blob: f, type: f.type, added: Date.now(), active: true, order: clips.length, answer: null };
-    try { await idbPut("clips", c); clips.push(c); added++; } catch (e) { probs.push(f.name + ": could not be stored (" + (e.message || e) + "). The device may be out of space."); }
+    var c = { id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: f.name, blob: f, type: videoType(f, f.name), added: Date.now(), active: true, order: clips.length, answer: null };
+    try { await idbPut("clips", c); clips.push(c); added++; } catch (e) { probs.push(f.name + ": could not be stored (" + (e.message || e) + "). If this is a Private Browsing window, open the game in a normal window instead (private windows can't keep videos). Otherwise the device may be out of space."); }
   }
   say("Added " + added + " of " + files.length + " clip(s)." + (probs.length ? "\nProblems:\n" + probs.join("\n") : "") + (added ? "\nNext: press “Set answers” on each new clip." : ""));
   render();
@@ -460,6 +490,10 @@ async function newGame() {
     await Promise.all([rref("answers").remove(), rref("results").remove(), rref("players").remove()]);
     await setGame({ phase: "lobby", clip: -1, open: false });
   } catch (e) { G = null; say("Couldn't start: " + WD.errText(e)); render(); return; }
+  await listenPlayers();
+  view = "lobby"; render();
+}
+async function listenPlayers() {
   G.playersRef = rref("players");
   G.playersCb = G.playersRef.on("value", function (s) {
     if (!G) return; G.present = s.val() || {};
@@ -467,7 +501,53 @@ async function newGame() {
     if (G.phase === "lobby") drawLobbyPlayers(); else updateAnswered();
   });
   try { if (navigator.wakeLock) G.wake = await navigator.wakeLock.request("screen"); } catch (e) {}
-  view = "lobby"; render();
+}
+
+/* ---------- surviving a refresh of the big screen ----------
+   The game lives in this page's memory, so a refresh (or a crash, or the laptop restarting the browser) used to end it,
+   leaving the phones stuck. Now:
+   - at the start of each clip the progress so far (players, scores, answer rows) is saved on this device (saveProgress);
+   - after a refresh the home screen offers "Resume game", which carries on from the interrupted clip (replayed from
+     the start; its half-collected answers are discarded so everyone can answer again);
+   - while the big screen is gone, the phones say so: game/hostAway is set by the server when this page disconnects. */
+var PROGRESS = "wd_progress";
+function saveProgress(next) {
+  if (!G) return;
+  try { localStorage.setItem(PROGRESS, JSON.stringify({ id: G.id, room: room, clipIds: G.clips.map(function (c) { return c.id; }), next: next, names: G.names, scores: G.scores,
+    answered: G.answered, rows: G.rows, started: G.started, questions: G.questions || 0, maxScore: G.maxScore || 0, saved: Date.now() })); } catch (e) {}
+}
+function clearProgress() { try { localStorage.removeItem(PROGRESS); } catch (e) {} }
+function loadProgress() {
+  try {
+    var P = JSON.parse(localStorage.getItem(PROGRESS) || "null");
+    if (!P || P.room !== room || Date.now() - P.saved > 6 * 3600 * 1000) return null;   /* too old, or another room */
+    var byId = {}; clips.forEach(function (c) { byId[c.id] = c; });
+    if (!P.clipIds.every(function (id) { return byId[id] && ready(byId[id]); })) return null; /* a clip was removed meanwhile */
+    P.clips = P.clipIds.map(function (id) { return byId[id]; });
+    return P;
+  } catch (e) { return null; }
+}
+function armAway() { if (fb && room) rref("game/hostAway").onDisconnect().set(true).catch(function () {}); }
+function disarmAway() { if (fb && room) rref("game/hostAway").onDisconnect().cancel().catch(function () {}); }
+async function resumeGame() {
+  var P = loadProgress(); if (!P || !fb || !room) { clearProgress(); render(); return; }
+  G = { id: P.id, clips: P.clips, i: -1, names: P.names || {}, scores: P.scores || {}, answered: P.answered || {}, rows: P.rows || [], started: P.started,
+    questions: P.questions, maxScore: P.maxScore, present: {}, ans: {}, cancelled: false, phase: "watch" };
+  if (!vid) { vid = el("video", { playsinline: true, preload: "auto" }); vid.setAttribute("webkit-playsinline", ""); }
+  vid.src = urlFor(P.clips[P.next]); vid.dataset.clip = P.clips[P.next].id;
+  try {
+    await rref("meta").set({ host: fb.uid, mode: cfg.mode, created: WD.serverTs() });
+    await rref("answers/" + G.id).remove();
+  } catch (e) { G = null; say("Couldn't resume: " + WD.errText(e)); render(); return; }
+  await listenPlayers();
+  say("");
+  startPlay(null, P.next);
+}
+async function abandonGame() {
+  var P = null; try { P = JSON.parse(localStorage.getItem(PROGRESS) || "null"); } catch (e) {}
+  clearProgress();
+  if (P && fb && room) try { await rref("game").set({ id: P.id, phase: "closed", total: P.clipIds.length, mode: cfg.mode, open: false }); } catch (e) {}
+  render();
 }
 function lobbyView(r) {
   var phones = cfg.mode !== "booth", u = joinUrl(false);
@@ -492,21 +572,23 @@ function lobbyView(r) {
 function drawLobbyPlayers() {
   var l = $("plist"); if (!l) return;
   var ids = present(); $("pcount").textContent = ids.length + (ids.length === 1 ? " player" : " players");
+  l.classList.toggle("many", ids.length > 16); l.classList.toggle("lots", ids.length > 40);
   var have = {}; [].slice.call(l.children).forEach(function (c) { have[c.dataset.uid] = c; });
   ids.forEach(function (u) { if (!have[u]) l.appendChild(el("span", { class: "pname popin", "data-uid": u }, [G.names[u]])); else { have[u].textContent = G.names[u]; delete have[u]; } });
   for (var k in have) have[k].remove();
   $("startBtn").disabled = !ids.length;
 }
-function startPlay(ev) {
+function startPlay(ev, from) {
   /* This tap lets the video play with sound later (browsers only allow sound after the user has tapped). */
   try { var p = vid.play(); if (p && p.then) p.then(function () { vid.pause(); vid.currentTime = 0; }).catch(function () {}); } catch (e) {}
-  view = "play";
-  runClips().catch(function (e) { if (e !== CANCEL) { console.error("game stopped", e); say("The game stopped: " + WD.errText(e)); endGame(); } });
+  view = "play"; armAway();
+  runClips(from || 0).catch(function (e) { if (e !== CANCEL) { console.error("game stopped", e); say("The game stopped: " + WD.errText(e)); endGame(); } });
 }
 
-async function runClips() {
-  for (var i = 0; i < G.clips.length; i++) {
+async function runClips(from) {
+  for (var i = from || 0; i < G.clips.length; i++) {
     check(); G.i = i; var c = G.clips[i], a = c.answer;
+    saveProgress(i);
     await phaseWatch(i, c);
     var correctAnimal = a.noAnimal ? WD.NO_ANIMAL : a.species;
     var choices = animalChoices(correctAnimal);
@@ -532,10 +614,37 @@ function animalChoices(correct) {
   var others = WD.shuffle(cfg.species.filter(function (s) { return s !== correct && !/other|unsure/i.test(s); })).slice(0, 3);
   return WD.shuffle([correct].concat(others));
 }
+/* Makes sure the clip can load. If the stored copy won't (in the Safari engine a video read back from storage
+   sometimes can't be played, while the same video in memory can), copy this one clip into memory and try that.
+   Only the clip currently playing is held in memory. Gives up after ~8 s, and the questions still run. */
+var memUrl = null;
+function waitLoad(ms) {
+  return new Promise(function (res) {
+    if (vid.readyState >= 1 && !vid.error) { res(true); return; }
+    var t = setTimeout(function () { fin(false); }, ms);
+    function fin(ok) { clearTimeout(t); vid.removeEventListener("loadedmetadata", okF); vid.removeEventListener("error", badF); res(ok); }
+    function okF() { fin(true); } function badF() { fin(false); }
+    vid.addEventListener("loadedmetadata", okF); vid.addEventListener("error", badF);
+    if (vid.readyState === 0 && !vid.error) try { vid.load(); } catch (e) {}
+  });
+}
+async function ensureLoaded(c) {
+  if (await waitLoad(4000)) return true;
+  try {
+    var buf = await c.blob.arrayBuffer();
+    if (memUrl) URL.revokeObjectURL(memUrl);
+    memUrl = URL.createObjectURL(new Blob([buf], { type: videoType(c.blob, c.name) }));
+    vid.src = memUrl; vid.dataset.clip = c.id;
+    if (await waitLoad(8000)) return true;
+  } catch (e) {}
+  G.videoProblem = true; return false;
+}
 async function phaseWatch(i, c) {
   G.phase = "watch"; G.q = null;
   await setGame({ phase: "watch", clip: i, open: false });
   if (vid.dataset.clip !== c.id) { vid.src = urlFor(c); vid.dataset.clip = c.id; }
+  G.videoProblem = false;
+  await ensureLoaded(c);
   vid.loop = false; vid.muted = false; vid.currentTime = 0; G.soundBlocked = false;
   render();
   try { await vid.play(); } catch (e) { vid.muted = true; G.soundBlocked = true; try { await vid.play(); } catch (e2) { G.videoProblem = true; } render(); }
@@ -608,6 +717,7 @@ async function finish() {
   var rec = { id: G.id, started: G.started, ended: Date.now(), mode: cfg.mode, questions: G.questions || 0, maxScore: G.maxScore || 0, clips: G.clips.map(function (c) { return c.name; }),
     players: list.map(function (p) { return { name: p.name, score: p.score, rank: p.rank, answered: G.answered[p.uid] || 0 }; }), rows: G.rows };
   try { await idbPut("games", rec); games.push(rec); } catch (e) { say("Couldn't save this game's results on this device: " + e.message); }
+  clearProgress(); disarmAway();
   G.phase = "final"; G.final = list; stopVideo(); view = "final"; render(); WD.confetti();
 }
 function stopVideo() { if (vid) { vid.onended = null; vid.pause(); vid.loop = false; } }
@@ -616,7 +726,7 @@ async function endGame() {
   var g = G; g.cancelled = true; if (g.next) g.next();
   if (g.playersRef) g.playersRef.off("value", g.playersCb);
   try { if (g.wake) g.wake.release(); } catch (e) {}
-  G = null; stopVideo();
+  G = null; stopVideo(); clearProgress(); disarmAway();
   try { await rref("game").set({ id: g.id, phase: "closed", total: g.clips.length, mode: cfg.mode, open: false }); } catch (e) {}
   view = "home"; render();
 }
@@ -666,13 +776,17 @@ function boardView() {
   var list = sorted().slice(0, 5), w = el("div", { class: "board" }, [el("h1", {}, ["🏆 Leaderboard"]), el("p", { class: "muted", style: "text-align:center" }, ["After clip " + (G.i + 1) + " of " + G.clips.length])]);
   list.forEach(function (p) { w.appendChild(el("div", { class: "brow popin" + (p.rank === 1 ? " p1" : "") }, [el("span", { class: "rk" }, [p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : p.rank === 3 ? "🥉" : "#" + p.rank]), el("span", { class: "nm" }, [p.name]), el("span", {}, [String(p.score)])])); });
   if (!list.length) w.appendChild(el("p", { class: "muted", style: "text-align:center" }, ["No players yet."]));
+  var all = Object.keys(G.names).length;
+  if (all > list.length) w.appendChild(el("p", { class: "more" }, ["+ " + (all - list.length) + " more player" + (all - list.length === 1 ? "" : "s") + ". Check your phone for your place!"]));
   return w;
 }
 function finalView(r) {
   var list = G.final || [], top = list.slice(0, 3), medal = ["🥇", "🥈", "🥉"], order = [1, 0, 2], h = ["150px", "200px", "120px"];
   var pod = el("div", { class: "podium" });
   order.forEach(function (k) { var p = top[k]; if (!p) return; pod.appendChild(el("div", { class: "popin" + (k === 0 ? " first" : ""), style: { minHeight: h[k] } }, [el("div", { class: "m" }, [medal[p.rank - 1] || "🏅"]), el("div", { class: "n" }, [p.name]), el("div", { class: "s" }, [p.score + " pts"])])); });
-  var rest = el("div", {}); list.slice(3, 10).forEach(function (p) { rest.appendChild(el("div", { class: "brow" }, [el("span", { class: "rk" }, ["#" + p.rank]), el("span", { class: "nm" }, [p.name]), el("span", {}, [String(p.score)])])); });
+  /* a short list under the podium (a long one pushed the buttons off a TV screen when many players tied) */
+  var rest = el("div", {}); list.slice(3, 7).forEach(function (p) { rest.appendChild(el("div", { class: "brow sm" }, [el("span", { class: "rk" }, ["#" + p.rank]), el("span", { class: "nm" }, [p.name]), el("span", {}, [String(p.score)])])); });
+  if (list.length > 7) rest.appendChild(el("p", { class: "more" }, ["…and " + (list.length - 7) + " more player" + (list.length - 7 === 1 ? "" : "s") + ". Everyone's place is on their phone."]));
   r.appendChild(el("div", { class: "final" }, [
     el("div", { class: "card board" }, [el("h1", {}, [el("span", { class: "bounce" }, ["🎉"]), " Great job, detectives!"]), el("p", { class: "muted", style: "text-align:center" }, [list.length + " player" + (list.length === 1 ? "" : "s") + " · " + G.clips.length + " clip" + (G.clips.length === 1 ? "" : "s")]), pod, rest]),
     el("div", { class: "card qrcard" }, [el("img", { src: "logo.png", alt: "Research project logo", style: "max-width:140px" }),

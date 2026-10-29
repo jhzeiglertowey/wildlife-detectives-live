@@ -38,8 +38,23 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
   - Safari engine (WebKitGTK) as the phone, with a Chromium big screen: a full game, #1 with 400 points, the congo-apes.org link, no errors.
   - Test rooms are deleted afterwards. A few anonymous test accounts remain under Authentication → Users (harmless).
   - **Sandbox notes for real-Firebase tests:** launch Chromium with `proxy={"server": HTTPS_PROXY, "bypass": "127.0.0.1,localhost"}`, and trust the agent-proxy CA in `~/.pki/nssdb`. That store was empty: `apt-get install libnss3-tools`, then `certutil -A -d sql:$HOME/.pki/nssdb -n ccr-proxy-ca -t "C,," -i <CA from /root/.ccr/ca-bundle.crt, subject "CCR agent-proxy interception CA">`. TLS checking stays on. For WebKitGTK, set `WebsiteDataManager.set_network_proxy_settings(CUSTOM, NetworkProxySettings.new(HTTPS_PROXY, ["localhost","127.0.0.1"]))`.
-- **Waiting on the user:** merging the branch, then turning on GitHub Pages (Settings → Pages → `main` / root) if not done yet.
-- **Not yet tested:** real phones and iPads, H.264 clips (the sandbox Chromium can't play them; tests use VP9 WebM), Google's real new-account limit.
+- 2026-10-28: PR #2 merged by the user; GitHub Pages turned on (live at https://jhzeiglertowey.github.io/wildlife-detectives-live/). The user allowed `jhzeiglertowey.github.io` in the cloud environment's network settings.
+- 2026-10-29: pre-demo checks (the user will show the game to their lab mentor) on branch `claude/pre-demo-checks`:
+  - **Big-screen refresh mid-game** (new, `tests/robust.py`): it used to lose the game and leave phones frozen. Now progress is saved at each clip, phones show "The big screen lost its connection" (`game/hostAway` via onDisconnect), and the home screen offers **Resume game** or **End it**.
+  - **Bugs found and fixed:**
+    - Reconnect detection never worked on either page: `WD.watchConnection` passes the same state object every time, so "was offline" was always false. It's now tracked in a separate `wasOnline`.
+    - A phone that lost its connection thought it had left the game, because Firebase runs the phone's `onDisconnect` removal locally at once. It got stuck on "Joining…". `joined` is now `myGame === game.id`, no longer requiring the `players` entry.
+    - After a resume, a re-asked question showed "Answer sent". Phones now forget a sent answer when the same question is asked again (new `startedAt`).
+  - **Published site:** `WD_REAL=1 tests/e2e.py https://jhzeiglertowey.github.io/wildlife-detectives-live/ …` played a full game from GitHub Pages on the real Firebase project: 50/50 (includes a check that the lobby's join link points to github.io).
+  - **Crowd** (new, `tests/crowd.py`): 30 players on the real Firebase project. Every answer was counted on the big screen within 2 s, and every score and rank was exact. 13/13.
+  - **Videos in Safari's engine:** see "Videos in Safari's engine" below (typed Blobs, in-memory retry, Private Browsing message).
+  - **Screen sizes** (new, `tests/sizes.py`): every screen photographed at big-screen sizes (1920×1080 TV, 1366×768 laptop, iPad 1180×820 and 820×1180) and phone sizes (320, 375, 390, 430 wide, iPad 820). It checks for sideways scrolling, clipped text, and that key buttons are reachable. Fixed:
+    - lobby name chips shrink with many players (`.players.many` above 16, `.lots` above 40);
+    - the final screen lists places 4–7 small (`.brow.sm`), then "…and N more players. Everyone's place is on their phone.";
+    - the leaderboard ends with "+ N more players. Check your phone for your place!";
+    - the big screen's control bar (Next / Close question / Play again, `.ctrl`) is sticky at the bottom, and screens under 900px tall use a compact question/reveal layout, so Next is never below the fold on a laptop or iPad;
+    - on phones the behavior screen's Done button sits in a sticky bar (`.donebar`), and screens under 700px tall use compact chips and tiles.
+- **Not yet tested:** real phones and iPads (including sound and real H.264 playback on an iPad; the sandbox Chromium can't play H.264, so tests use VP9 WebM, and WebKitGTK playback here is flaky), Google's real new-account limit.
 
 ## Files
 
@@ -124,6 +139,27 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
 - Test hook: `?failauth=N` (emulator only) makes the first N connection attempts fail with `auth/too-many-requests` (`tests/wifi.py`).
 - `tests/wifi_real.py` runs the **real** sign-in code (not the emulator shortcut). It swaps in a dummy `firebase-config.js` and answers Google's `identitytoolkit.googleapis.com/v1/accounts:signUp` request with Google's actual refusal bodies: `TOO_MANY_ATTEMPTS_TRY_LATER` (the SDK maps it to `auth/too-many-requests`) and `QUOTA_EXCEEDED` (not mapped by the SDK; matched by its message). For both, the page shows the busy-Wi-Fi message, Try again asks Google again, and it retries by itself after 30 s (10/10, 2026-10-23). Google's real limit itself can't be triggered without the user's project and more than 100 new accounts.
 
+### Surviving problems mid-game (2026-10-29)
+- **Big screen refreshed, crashed or offline:**
+  - `saveProgress(i)` writes `localStorage.wd_progress` at the start of each clip: game id, room, clip ids, next clip, names, scores, answered, rows, questions, maxScore. It's cleared at the final screen and by End game.
+  - `loadProgress()` accepts it only for the same room, within 6 h, and if all its clips still exist.
+  - Home shows "⚠ A game was interrupted… ▶ Resume game / End it" (`#resumeBox`):
+    - `resumeGame()` rebuilds `G`, deletes `answers/<gameId>` (half-collected answers for the interrupted clip), re-attaches the players listener and runs `runClips(next)`. The interrupted clip replays from the start.
+    - `abandonGame()` sets the game to `closed`.
+- **Phones while the big screen is away:** `armAway()` registers `game/hostAway` = true as an onDisconnect when play starts. Phones show "⏸ The big screen lost its connection" during lobby/watch/question/reveal/board. On reconnect, the host sets it false and re-arms (onDisconnect fires once); `setGame()` overwrites it anyway.
+- **Phone loses its connection:**
+  - It shows "Reconnecting…" over the current screen, and stays in the game (`joined = myGame === game.id`).
+  - Back online, `watchConnection` (with a separate `wasOnline`) rewrites `players/<uid>`.
+  - The big screen doesn't wait for disconnected phones: "everyone answered" counts only the connected ones, so a phone that drops may miss a question. That's by design.
+
+### Videos in Safari's engine (tested 2026-10-29 in WebKitGTK 2.52, H.264 High + AAC, 1280×720)
+- H.264/AAC MP4 decodes and plays in the Safari engine: a full 6 s clip at 1280×720 inside a game.
+- **This container's WebKitGTK/GStreamer playback fails at random:** roughly 40% of loads give `MEDIA_ERR_SRC_NOT_SUPPORTED` (4). That happens for a Blob in memory or from IndexedDB, labelled or not, and the pattern changes run to run. It is not a game bug. Judge real playback on an iPad or Mac.
+- **Defensive changes kept:**
+  - `urlFor()` and `checkPlayable()` play from a Blob that always carries a video type (`typedBlob`/`videoType`, from the file or its name). A Blob read back from IndexedDB in WebKit has `type` "".
+  - `ensureLoaded(c)` at the start of each clip: if the stored copy doesn't load within 4 s, it copies this one clip into memory (`arrayBuffer` → new Blob) and tries again for 8 s. Only the current clip is held in memory (`memUrl`). If it still fails, `G.videoProblem` shows the "couldn't play" note and the questions still run.
+- **Private Browsing:** WebKit refuses to store videos in IndexedDB in a private session (the transaction aborts). The add-clip error message and the README say to use a normal window.
+
 ### Results / CSV (on the big screen only)
 - `wildlife_detectives_live_players_<date>.csv`: one row per player per game.
 - `wildlife_detectives_live_answers_<date>.csv`: one row per player per clip, with the answer, the correct answer and the points.
@@ -154,10 +190,10 @@ This repo is **completely separate** from the single-iPad game (repo `jhzeiglert
   - run the emulator jar directly on port 9000;
   - PUT `database.rules.json` to `/.settings/rules.json?ns=demo-wd` with `Authorization: Bearer owner`;
   - serve the repo with `python3 -m http.server 8080`;
-  - run `tests/e2e.py`, `tests/booth.py`, `tests/ui.py` and `tests/wifi.py`.
+  - run `tests/e2e.py`, `tests/booth.py`, `tests/ui.py`, `tests/wifi.py`, `tests/wifi_real.py`, `tests/robust.py` and `tests/sizes.py` (and, against the real project, `WD_REAL=1 tests/e2e.py` and `tests/crowd.py`).
 - In the cloud sandbox, `firebase emulators:start` fails to load rules because the CLI's traffic goes through the outbound proxy. Running the jar directly avoids it.
 - `--noproxy '*'` is needed for curl to reach localhost.
 - Sandbox Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. It has no H.264, so test clips are VP9 WebM.
 - Safari-engine check: WebKitGTK 2.52 is available (see the single-iPad repo's CLAUDE.md for how to run it; snapshots need `python3-gi-cairo`).
-- After editing, extract each page's last `<script>` and run `node --check` on it, then run all four test files.
+- After editing, extract each page's last `<script>` and run `node --check` on it, then run all the test files.
 - **Safari engine (WebKitGTK)** harness: a Chromium big screen drives the game, and a WebKitGTK window plays as a phone or booth iPad (`index.html?room=CODE&emu=1&uid=...`). The harness injects JS that answers and reports, and snapshots are taken with `get_snapshot` (needs `python3-gi-cairo`). Run it under `xvfb-run` with `/usr/bin/python3.12`. The scripts lived in the session scratchpad (not in the repo); rebuild them from this description if needed.

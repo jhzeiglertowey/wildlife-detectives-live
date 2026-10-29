@@ -30,6 +30,8 @@ python3 tests/booth.py http://127.0.0.1:8080/ clips work        # booth-iPad mod
 python3 tests/ui.py    http://127.0.0.1:8080/ clips shots       # jungle decor, button animations, scroll position, no needless redraws, Reduce Motion
 python3 tests/wifi.py  http://127.0.0.1:8080/ shots             # busy-Wi-Fi message, Try again, automatic retry (simulated with ?failauth=1)
 python3 tests/wifi_real.py http://127.0.0.1:8080/ shots          # same, through the real sign-in code, with Google's actual refusal responses (no emulator needed)
+python3 tests/robust.py http://127.0.0.1:8080/ clips shots       # big screen refreshed mid-game (resume / end it), a phone losing its connection and coming back
+python3 tests/sizes.py  http://127.0.0.1:8080/ clips shots       # every screen at TV/laptop/iPad and small-to-large phone sizes: no sideways scroll, no clipped text, key buttons reachable
 ```
 
 `booth.py` needs `opencv-python` to decode the QR codes.
@@ -37,3 +39,5 @@ python3 tests/wifi_real.py http://127.0.0.1:8080/ shots          # same, through
 ## Against the real Firebase project
 
 `WD_REAL=1 python3 tests/e2e.py http://127.0.0.1:8080/ clips downloads` plays the same full game against the project in `firebase-config.js` (real anonymous sign-in and the published rules), then deletes its test room. If outbound traffic goes through a proxy, the browser uses `HTTPS_PROXY`, and the proxy's CA must be trusted in `~/.pki/nssdb` (see CLAUDE.md).
+
+`WD_REAL=1 python3 tests/crowd.py http://127.0.0.1:8080/ clips shots` runs one game with 30 players on the real project and checks every answer count, score and rank.
