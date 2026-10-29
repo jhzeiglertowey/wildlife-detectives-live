@@ -132,7 +132,7 @@ var DEFAULTS = {
 };
 var cfg = Object.assign({}, DEFAULTS), clips = [], games = [];
 var view = "home", unlocked = false, msg = "", armed = null, armT = null;
-var fb = null, room = null, connState = { online: false, offset: 0 };
+var fb = null, room = null, connState = { online: false, offset: 0 }, wasOnline = false;
 var G = null;          /* the game being played */
 var vid = null;        /* one <video> element reused for every clip (iPads limit how many can play) */
 var urls = {};         /* clip id -> object URL */
@@ -169,7 +169,11 @@ async function claimRoom() {
 async function connectFirebase() {
   try {
     fb = await WD.connect();
-    WD.watchConnection(fb.db, function (s) { connState = s; showConn(); });
+    WD.watchConnection(fb.db, function (s) {
+      var was = wasOnline; wasOnline = s.online; connState = s; showConn();   /* s is the same object every time */
+      /* back online during a game: the server set hostAway when we dropped; clear it and re-arm (onDisconnect fires once) */
+      if (s.online && !was && G && G.phase !== "lobby" && G.phase !== "final" && room) { rref("game/hostAway").set(false).catch(function () {}); armAway(); }
+    });
     await claimRoom();
     showConn(); if (view === "home" || view === "settings") render();
   } catch (e) {
@@ -214,6 +218,14 @@ function homeView(r) {
   if (!WD.configured() && !WD.isEmulator()) w.appendChild(el("div", { class: "warn-box" }, ["Firebase isn't set up yet, so phones and iPads can't connect. Follow \"Set up Firebase\" in README.md, then reload this page."]));
   else if (!fb) w.appendChild(el("div", { class: "warn-box" }, ["Not connected to the game server yet. Check the internet connection. (" + $("connText").textContent + ")"]));
   if (!n) w.appendChild(el("div", { class: "warn-box" }, ["No clips are ready. Open ⚙ Settings, add camera-trap videos and set each one's answers."]));
+  var P = room ? loadProgress() : null;
+  if (P) w.appendChild(el("div", { class: "warn-box", id: "resumeBox" }, [
+    el("b", {}, ["⚠ A game was interrupted"]), " at clip " + (P.next + 1) + " of " + P.clipIds.length + " (" + Object.keys(P.names || {}).length + " players). ",
+    "Resume it to carry on with everyone's scores; the interrupted clip plays again from the start.",
+    el("div", { class: "row", style: "margin-top:8px;justify-content:center" }, [
+      el("button", { class: "btn go", id: "resumeBtn", disabled: !fb, onclick: resumeGame }, ["▶ Resume game"]),
+      el("button", { class: "btn " + (armed === "abandon" ? "armed" : "alt"), onclick: function () { if (armed !== "abandon") { arm("abandon"); return; } armed = null; abandonGame(); } },
+        [armed === "abandon" ? "Tap again to end it" : "End it"])])]));
   w.appendChild(el("div", { class: "row", style: "justify-content:center;margin-top:14px" }, [
     el("button", { class: "btn big go", id: "newGame", disabled: !n || !fb || !room, onclick: newGame }, ["▶ New game"])]));
   w.appendChild(el("p", { class: "hint", style: "margin-top:10px" }, [cfg.mode === "booth" ? "Players use the booth iPads (change in Settings)." : "Players join on their own phones by scanning a QR code (change in Settings)."]));
@@ -460,6 +472,10 @@ async function newGame() {
     await Promise.all([rref("answers").remove(), rref("results").remove(), rref("players").remove()]);
     await setGame({ phase: "lobby", clip: -1, open: false });
   } catch (e) { G = null; say("Couldn't start: " + WD.errText(e)); render(); return; }
+  await listenPlayers();
+  view = "lobby"; render();
+}
+async function listenPlayers() {
   G.playersRef = rref("players");
   G.playersCb = G.playersRef.on("value", function (s) {
     if (!G) return; G.present = s.val() || {};
@@ -467,7 +483,53 @@ async function newGame() {
     if (G.phase === "lobby") drawLobbyPlayers(); else updateAnswered();
   });
   try { if (navigator.wakeLock) G.wake = await navigator.wakeLock.request("screen"); } catch (e) {}
-  view = "lobby"; render();
+}
+
+/* ---------- surviving a refresh of the big screen ----------
+   The game lives in this page's memory, so a refresh (or a crash, or the laptop restarting the browser) used to end it,
+   leaving the phones stuck. Now:
+   - at the start of each clip the progress so far (players, scores, answer rows) is saved on this device (saveProgress);
+   - after a refresh the home screen offers "Resume game", which carries on from the interrupted clip (replayed from
+     the start; its half-collected answers are discarded so everyone can answer again);
+   - while the big screen is gone, the phones say so: game/hostAway is set by the server when this page disconnects. */
+var PROGRESS = "wd_progress";
+function saveProgress(next) {
+  if (!G) return;
+  try { localStorage.setItem(PROGRESS, JSON.stringify({ id: G.id, room: room, clipIds: G.clips.map(function (c) { return c.id; }), next: next, names: G.names, scores: G.scores,
+    answered: G.answered, rows: G.rows, started: G.started, questions: G.questions || 0, maxScore: G.maxScore || 0, saved: Date.now() })); } catch (e) {}
+}
+function clearProgress() { try { localStorage.removeItem(PROGRESS); } catch (e) {} }
+function loadProgress() {
+  try {
+    var P = JSON.parse(localStorage.getItem(PROGRESS) || "null");
+    if (!P || P.room !== room || Date.now() - P.saved > 6 * 3600 * 1000) return null;   /* too old, or another room */
+    var byId = {}; clips.forEach(function (c) { byId[c.id] = c; });
+    if (!P.clipIds.every(function (id) { return byId[id] && ready(byId[id]); })) return null; /* a clip was removed meanwhile */
+    P.clips = P.clipIds.map(function (id) { return byId[id]; });
+    return P;
+  } catch (e) { return null; }
+}
+function armAway() { if (fb && room) rref("game/hostAway").onDisconnect().set(true).catch(function () {}); }
+function disarmAway() { if (fb && room) rref("game/hostAway").onDisconnect().cancel().catch(function () {}); }
+async function resumeGame() {
+  var P = loadProgress(); if (!P || !fb || !room) { clearProgress(); render(); return; }
+  G = { id: P.id, clips: P.clips, i: -1, names: P.names || {}, scores: P.scores || {}, answered: P.answered || {}, rows: P.rows || [], started: P.started,
+    questions: P.questions, maxScore: P.maxScore, present: {}, ans: {}, cancelled: false, phase: "watch" };
+  if (!vid) { vid = el("video", { playsinline: true, preload: "auto" }); vid.setAttribute("webkit-playsinline", ""); }
+  vid.src = urlFor(P.clips[P.next]); vid.dataset.clip = P.clips[P.next].id;
+  try {
+    await rref("meta").set({ host: fb.uid, mode: cfg.mode, created: WD.serverTs() });
+    await rref("answers/" + G.id).remove();
+  } catch (e) { G = null; say("Couldn't resume: " + WD.errText(e)); render(); return; }
+  await listenPlayers();
+  say("");
+  startPlay(null, P.next);
+}
+async function abandonGame() {
+  var P = null; try { P = JSON.parse(localStorage.getItem(PROGRESS) || "null"); } catch (e) {}
+  clearProgress();
+  if (P && fb && room) try { await rref("game").set({ id: P.id, phase: "closed", total: P.clipIds.length, mode: cfg.mode, open: false }); } catch (e) {}
+  render();
 }
 function lobbyView(r) {
   var phones = cfg.mode !== "booth", u = joinUrl(false);
@@ -497,16 +559,17 @@ function drawLobbyPlayers() {
   for (var k in have) have[k].remove();
   $("startBtn").disabled = !ids.length;
 }
-function startPlay(ev) {
+function startPlay(ev, from) {
   /* This tap lets the video play with sound later (browsers only allow sound after the user has tapped). */
   try { var p = vid.play(); if (p && p.then) p.then(function () { vid.pause(); vid.currentTime = 0; }).catch(function () {}); } catch (e) {}
-  view = "play";
-  runClips().catch(function (e) { if (e !== CANCEL) { console.error("game stopped", e); say("The game stopped: " + WD.errText(e)); endGame(); } });
+  view = "play"; armAway();
+  runClips(from || 0).catch(function (e) { if (e !== CANCEL) { console.error("game stopped", e); say("The game stopped: " + WD.errText(e)); endGame(); } });
 }
 
-async function runClips() {
-  for (var i = 0; i < G.clips.length; i++) {
+async function runClips(from) {
+  for (var i = from || 0; i < G.clips.length; i++) {
     check(); G.i = i; var c = G.clips[i], a = c.answer;
+    saveProgress(i);
     await phaseWatch(i, c);
     var correctAnimal = a.noAnimal ? WD.NO_ANIMAL : a.species;
     var choices = animalChoices(correctAnimal);
@@ -608,6 +671,7 @@ async function finish() {
   var rec = { id: G.id, started: G.started, ended: Date.now(), mode: cfg.mode, questions: G.questions || 0, maxScore: G.maxScore || 0, clips: G.clips.map(function (c) { return c.name; }),
     players: list.map(function (p) { return { name: p.name, score: p.score, rank: p.rank, answered: G.answered[p.uid] || 0 }; }), rows: G.rows };
   try { await idbPut("games", rec); games.push(rec); } catch (e) { say("Couldn't save this game's results on this device: " + e.message); }
+  clearProgress(); disarmAway();
   G.phase = "final"; G.final = list; stopVideo(); view = "final"; render(); WD.confetti();
 }
 function stopVideo() { if (vid) { vid.onended = null; vid.pause(); vid.loop = false; } }
@@ -616,7 +680,7 @@ async function endGame() {
   var g = G; g.cancelled = true; if (g.next) g.next();
   if (g.playersRef) g.playersRef.off("value", g.playersCb);
   try { if (g.wake) g.wake.release(); } catch (e) {}
-  G = null; stopVideo();
+  G = null; stopVideo(); clearProgress(); disarmAway();
   try { await rref("game").set({ id: g.id, phase: "closed", total: g.clips.length, mode: cfg.mode, open: false }); } catch (e) {}
   view = "home"; render();
 }

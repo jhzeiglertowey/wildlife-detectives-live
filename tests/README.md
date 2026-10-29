@@ -30,6 +30,7 @@ python3 tests/booth.py http://127.0.0.1:8080/ clips work        # booth-iPad mod
 python3 tests/ui.py    http://127.0.0.1:8080/ clips shots       # jungle decor, button animations, scroll position, no needless redraws, Reduce Motion
 python3 tests/wifi.py  http://127.0.0.1:8080/ shots             # busy-Wi-Fi message, Try again, automatic retry (simulated with ?failauth=1)
 python3 tests/wifi_real.py http://127.0.0.1:8080/ shots          # same, through the real sign-in code, with Google's actual refusal responses (no emulator needed)
+python3 tests/robust.py http://127.0.0.1:8080/ clips shots       # big screen refreshed mid-game (resume / end it), a phone losing its connection and coming back
 ```
 
 `booth.py` needs `opencv-python` to decode the QR codes.
